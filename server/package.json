@@ -1,0 +1,18 @@
+{
+  "name": "ha-exporter-server",
+  "version": "0.1.0",
+  "description": "Receives sensor / statistics payloads from the ha-exporter Home Assistant integration and stores them in SQLite.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "express": "^5.2.1"
+  }
+}
