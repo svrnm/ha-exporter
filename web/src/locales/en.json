@@ -1,7 +1,12 @@
 {
   "app": {
-    "title": "HA Exporter",
+    "title": "Dahoamboard",
     "logout": "Log out",
+    "shareLink": "Copy invite link",
+    "shareLinkAria": "Copy a sign-in link for someone else (view-only access)",
+    "shareLinkCopied": "Invite link copied to clipboard",
+    "shareLinkCopyFailed": "Copy failed — select the URL below and copy it manually:",
+    "moreMenuAria": "More: theme, language, invite link, last sync, log out",
     "language": "Language",
     "instance": "Instance",
     "theme": {
@@ -15,12 +20,18 @@
     "summary": "Summary",
     "electricity": "Electricity",
     "gas": "Gas",
-    "now": "Live"
+    "now": "Live",
+    "bottom": {
+      "summary": "Summary",
+      "electricity": "Electric",
+      "gas": "Gas",
+      "now": "Live"
+    }
   },
   "login": {
-    "title": "Connect to your HA Exporter",
-    "description": "Paste the bearer token you configured in the Home Assistant integration. It is stored only in this browser.",
-    "tokenLabel": "Bearer token",
+    "title": "Connect to Dahoamboard",
+    "description": "Paste the token for this Dahoamboard. It is kept only in this browser.",
+    "tokenLabel": "Token",
     "submit": "Continue",
     "invalid": "That token was rejected by the server.",
     "offline": "The server did not respond. Is the endpoint reachable?"
@@ -38,7 +49,9 @@
     "prev": "Previous day / shift range",
     "next": "Next day / shift range",
     "prevAria": "Go to the previous day or shift the range one day back",
-    "nextAria": "Go to the next day or shift the range one day forward"
+    "nextAria": "Go to the next day or shift the range one day forward",
+    "tapToChangeAria": "Change date range. Current: {{range}}",
+    "pickerSheetTitle": "Date range"
   },
   "units": {
     "kwh": "kWh",
@@ -46,7 +59,8 @@
     "kw": "kW",
     "w": "W",
     "kgCo2": "kg CO₂",
-    "treeYears": "tree·yr"
+    "treeYears": "tree·yr",
+    "treeYearsAbbr": "tree·yr"
   },
   "summary": {
     "distribution": "Energy distribution",
@@ -89,15 +103,29 @@
     "insightLast30": "Last 30 days",
     "insightSelectedRange": "Selected range",
     "insightAllData": "All stored data",
-    "heroCurrentView": "Current view",
-    "heroConsumptionFootnote": "Solar, battery, and grid shares of current load",
-    "heroCurrentViewUnavailable": "Live split needs the Energy dashboard power sensors (same as the Live page).",
-    "heroSolarProduction": "Solar production",
-    "heroStatConsumptionTagline": "Current load",
+    "sectionTotalYieldTitle": "Total yield",
+    "widgetPlaceholder": "Space reserved for a new card",
+    "widgetPlaceholderAria": "Placeholder for a future summary widget",
+    "livePowerBarTitle": "Live power, by source",
+    "livePowerBarHome": "Home",
+    "livePowerBarHomePowerAria": "Home use: {{w}}",
+    "livePowerBarSegGrid": "Grid",
+    "livePowerBarSegBattery": "Battery",
+    "livePowerBarSegSolar": "Solar",
+    "livePowerBarSegToBattery": "→ battery",
+    "livePowerBarSegToGrid": "→ grid",
+    "livePowerBarNoSensors": "Live data needs the Energy dashboard power sensors (see Live page).",
+    "livePowerBarAria": "Instant power split; home use about {{w}}",
+    "sectionRangeTitle": "This range",
+    "insightRangeCardCost": "Total cost",
+    "insightRangeCardSavings": "Savings",
+    "insightRangeCardCo2": "CO₂",
+    "insightRangeCardTrees": "Tree-years",
     "heroStatSolarTagline": "Solar yield (kWh)",
     "heroStatTreesTagline": "Trees planted",
-    "heroStatCo2Tagline": "CO₂ avoided",
-    "heroStatSavingsTagline": "Cost savings",
+    "heroStatCo2Tagline": "kg CO₂ avoided",
+    "heroStatSavingsTagline": "Cost savings (€)",
+    "heroSolarProduction": "Solar production",
     "heroAllStoredCaption": "All stored data",
     "insightMethodAria": "How this estimate is calculated",
     "lastSyncedFromHa": "Last synced from Home Assistant: {{time}}",
@@ -146,7 +174,9 @@
   },
   "now": {
     "title": "Live",
-    "subtitle": "Power over time and where it flowed today",
+    "subtitle": "Power over time and current device use",
+    "devicesTitle": "Per-device power (right now)",
+    "devicesEmptyWatts": "No per-device power readings. Configure a `stat_rate` (power) sensor for each device row in the Home Assistant Energy dashboard.",
     "noLatest": "No live readings yet. Waiting for the next push.",
     "noPowerSensors": "No power sensors (stat_rate) are configured in your Home Assistant Energy dashboard. Add them there and they'll show up here.",
     "lastUpdated": "updated",

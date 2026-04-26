@@ -1,7 +1,7 @@
 {
   "name": "ha-exporter-server",
   "version": "0.1.0",
-  "description": "Receives sensor / statistics payloads from the ha-exporter Home Assistant integration and stores them in SQLite.",
+  "description": "Dahoamboard server — receives sensor / statistics payloads from the HA Exporter Home Assistant integration and stores them in SQLite.",
   "type": "module",
   "private": true,
   "engines": {
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "generate-tokens": "node scripts/generate-tokens.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

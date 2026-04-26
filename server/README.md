@@ -1,12 +1,13 @@
-# ha-exporter-server
+# Dahoamboard (server)
 
-Tiny Node.js service that receives payloads from the
+Tiny Node.js service (`ha-exporter-server` npm package) that receives payloads from the
 [`ha_exporter`](../custom_components/ha_exporter) Home Assistant integration
 and stores them in a single SQLite file. Ships with JSON read endpoints plus
 static serving for the companion React UI in [`../web`](../web).
 
 - Node **22.5+** (built-in `node:sqlite`), Express 5. No native SQLite addon.
-- Single shared bearer token. One SQLite file. No build step on the server.
+- Bearer auth: separate read and write tokens. One SQLite file. No build step
+  on the server.
 - Optional: build the React UI (`cd ../web && npm run build`) and this server
   will pick up `web/dist/` automatically.
 
@@ -15,15 +16,16 @@ static serving for the companion React UI in [`../web`](../web).
 ```bash
 cd server
 cp .env.example .env
-# edit .env: set HA_EXPORTER_TOKEN (openssl rand -hex 32) at minimum
 npm install
+# Either edit plaintext tokens into .env, or generate fingerprints + secrets:
+npm run generate-tokens
 npm start
 ```
 
-Or with env inline:
+Or with env inline (plaintext tokens only):
 
 ```bash
-HA_EXPORTER_TOKEN=$(openssl rand -hex 32) npm start
+HA_EXPORTER_READ_TOKEN=$(openssl rand -hex 32) HA_EXPORTER_WRITE_TOKEN=$(openssl rand -hex 32) npm start
 ```
 
 Point your HA integration at `https://your-vps.example.com` (TLS should be
@@ -36,16 +38,28 @@ terminated by your virtual server's reverse proxy). The integration appends
 |---|---|---|
 | `PORT` | `8080` | HTTP port. |
 | `HOST` | `0.0.0.0` | Bind address; use `127.0.0.1` behind a local proxy. |
-| `HA_EXPORTER_TOKEN` | **required** | Shared bearer token; must equal the token in the HA config flow. |
+| `HA_EXPORTER_READ_TOKEN` | **required** | Plaintext or **`sha256$` + 64 hex** fingerprint (from `npm run generate-tokens`). Clients always send the **plaintext** bearer token. |
+| `HA_EXPORTER_WRITE_TOKEN` | **required** | Same as read token. Used for `POST /ingest` and `DELETE /instances/...` (Home Assistant); also accepted on read routes. |
 | `DATABASE_PATH` | `<server>/data/ha-exporter.sqlite` | Resolved relative to the source tree, not the CWD. Parent dir auto-created. |
 | `BODY_LIMIT` | `50mb` | Max inflated request body. Bump for big backfills. |
 | `WEB_ROOT` | `<server>/../web/dist` | Location of the built React UI. If missing, the server boots API-only. |
 | `SHORT_STATS_RETENTION_DAYS` | `10` | How long to keep 5-minute statistics. Set to `0` to disable the sweep and keep them forever. Mirrors HA's own recorder retention. |
 | `STATES_RETENTION_DAYS` | `10` | Prunes state *history* older than this many days, but **always keeps the newest row per entity** so static tariff / `input_number` prices still appear in `/states/latest` after long gaps. Set to `0` to disable state pruning. |
 
+### `npm run generate-tokens`
+
+Writes random 64-hex secrets and **`sha256$…` fingerprints** into
+`HA_EXPORTER_READ_TOKEN` / `HA_EXPORTER_WRITE_TOKEN` in `server/.env` (or
+`--env /path`), and prints the plaintext values **once**. Verification uses
+SHA-256 on each request.
+
 ## Endpoints
 
 All routes except `GET /health` require `Authorization: Bearer <token>`.
+
+Use the **write** token for `POST /ingest` and `DELETE /instances/...`, and the
+**read** token for everything else (the web UI). The write token is also
+accepted on read routes so you can debug with one secret via `curl` if needed.
 
 ### Write
 
@@ -89,8 +103,9 @@ If `web/dist/` exists, the server:
 - Adds an SPA fallback: any unmatched `GET` that isn't an API path and
   accepts `text/html` is answered with `index.html`, so client-side routes
   like `/electricity` survive reloads.
-- The token is pasted into the UI once and stored in `localStorage`; every
-  API request then attaches it, and a 401 clears it and bounces to login.
+- The **read** token is pasted into the UI once and stored in `localStorage`;
+  every API request then attaches it, and a 401 clears it and bounces to
+  login.
 
 Build it with `cd ../web && npm run build` and restart the server.
 
@@ -121,8 +136,12 @@ single-writer ingest workload.
 ## Smoke test
 
 ```bash
-TOKEN=$(grep HA_EXPORTER_TOKEN .env | cut -d= -f2)
-curl -sS -H "Authorization: Bearer $TOKEN" \
+# Use the plaintext read/write secrets (same strings you put in HA / the web UI).
+# If .env holds sha256$ fingerprints, use the saved plaintext in curl — not the env line.
+READ=…
+WRITE=…
+
+curl -sS -H "Authorization: Bearer $WRITE" \
      -H 'Content-Type: application/json' \
      -d '{
        "schema_version": 1,
@@ -148,15 +167,15 @@ curl -sS -H "Authorization: Bearer $TOKEN" \
      }' \
      http://localhost:8080/ingest
 
-curl -sS -H "Authorization: Bearer $TOKEN" \
+curl -sS -H "Authorization: Bearer $READ" \
      'http://localhost:8080/statistics?instance_id=test-instance&statistic_id=sensor.grid_consumption'
 
 # Wipe the test instance's time-series (keep prefs + instance record):
-curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
+curl -sS -X DELETE -H "Authorization: Bearer $WRITE" \
      'http://localhost:8080/instances/test-instance'
 
 # Full wipe (also drops prefs + instance record):
-curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
+curl -sS -X DELETE -H "Authorization: Bearer $WRITE" \
      'http://localhost:8080/instances/test-instance?full=1'
 ```
 

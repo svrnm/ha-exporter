@@ -23,9 +23,9 @@ function decodeTokenSegment(s) {
 }
 
 /**
- * `https://<host>/token/<auth_token>` stores the token in the same way as the
- * login form (localStorage) and immediately redirects to the app root, so
- * the token is not left in the address bar. Use a URL-encoded path segment
+ * `https://<host>/token/<auth_token>` stores the read token like the login
+ * form (localStorage) and immediately redirects to the
+ * app root, so the token is not left in the address bar. Use a URL-encoded path segment
  * for tokens with special characters; the reserved slash is supported via
  * `…/token/<before>%2F<after>` (one path segment) or a catch-all if your host
  * allows it. Tokens containing `/` as separate path segments: use

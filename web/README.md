@@ -1,4 +1,4 @@
-# ha-exporter web UI
+# Dahoamboard (web UI)
 
 A React + MUI dashboard that consumes the `ha-exporter-server` API and
 mirrors the Home Assistant Energy dashboard (Summary, Electricity, Gas,
@@ -40,10 +40,9 @@ Vite serves on <http://localhost:5173> and proxies `/ingest`, `/instances`,
 `/entities`, `/statistics`, `/states`, `/energy`, `/health` to
 <http://localhost:8080>, where the Node server should be running.
 
-Paste the same bearer token you configured in the Home Assistant
-integration on the login screen — it is stored in `localStorage` under
-`ha_exporter_token`. A 401 from any request clears the token and bounces
-you back to the login.
+Paste the dashboard token from your server operator into the login screen. It
+is stored in `localStorage` under `ha_exporter_token`. A 401 from any request
+clears it and bounces you back to the login.
 
 ## Production build
 

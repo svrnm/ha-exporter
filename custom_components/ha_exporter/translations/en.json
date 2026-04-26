@@ -7,7 +7,7 @@
         "data": {
           "endpoint": "Endpoint URL (primary)",
           "second_endpoint": "Second endpoint URL (optional)",
-          "token": "Bearer token",
+          "token": "Write token (uploads)",
           "interval": "Push interval (seconds)",
           "include_energy": "Auto-export Energy dashboard entities",
           "extra_entities": "Extra entities to export (real-time states)",
@@ -20,8 +20,8 @@
         },
         "data_description": {
           "endpoint": "Base URL of your receiving API. The integration appends /ingest automatically. Pushes, retries, and the offline buffer use this URL first (use the server that must be reliable, e.g. production).",
-          "second_endpoint": "Optional second base URL. The same bearer token and payload are sent to both URLs on every successful push (e.g. mirror to a dev server). If the second URL is down, uploads to the primary still succeed (warning in the log). Only the primary controls retries and backoff.",
-          "token": "Sent as Authorization: Bearer <token>.",
+          "second_endpoint": "Optional second base URL. The same write token and payload are sent to both URLs on every successful push (e.g. mirror to a dev server). If the second URL is down, uploads to the primary still succeed (warning in the log). Only the primary controls retries and backoff.",
+          "token": "Sent as Authorization: Bearer on POST /ingest and DELETE /instances. Must match HA_EXPORTER_WRITE_TOKEN on the server. The web UI uses HA_EXPORTER_READ_TOKEN.",
           "interval": "How often buffered data is flushed to the remote API. Minimum 30 seconds.",
           "include_energy": "If enabled, long-term statistics for every entity configured in the Energy dashboard are pushed hourly.",
           "extra_entities": "State changes for these entities are pushed in real time (batched).",
@@ -50,7 +50,7 @@
         "data": {
           "endpoint": "Endpoint URL (primary)",
           "second_endpoint": "Second endpoint URL (optional)",
-          "token": "Bearer token",
+          "token": "Write token (uploads)",
           "interval": "Push interval (seconds)",
           "include_energy": "Auto-export Energy dashboard entities",
           "extra_entities": "Extra entities to export (real-time states)",
@@ -63,7 +63,7 @@
         },
         "data_description": {
           "endpoint": "Base URL the integration POSTs to (append /ingest). Primary: retries and buffer ack use this URL.",
-          "second_endpoint": "Optional mirror. Same token and full payload on each successful push. Failures are logged only."
+          "second_endpoint": "Optional mirror. Same write token and full payload on each successful push. Failures are logged only."
         }
       }
     }
@@ -103,6 +103,37 @@
           "name": "Full wipe",
           "description": "Also delete the stored energy dashboard configuration on the server."
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "last_success": {
+        "name": "Last successful push"
+      },
+      "buffer_states": {
+        "name": "Buffered state records"
+      },
+      "buffer_statistics": {
+        "name": "Buffered statistic batches"
+      },
+      "upload_status": {
+        "name": "Primary endpoint status",
+        "state": {
+          "ok": "OK",
+          "retrying": "Retrying"
+        }
+      }
+    },
+    "button": {
+      "push_now": {
+        "name": "Push now"
+      },
+      "backfill_30d": {
+        "name": "Backfill 30 days"
+      },
+      "reset_remote": {
+        "name": "Reset remote data"
       }
     }
   }

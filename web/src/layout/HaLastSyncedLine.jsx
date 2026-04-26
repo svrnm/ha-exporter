@@ -23,7 +23,7 @@ import { useInstance } from './InstanceContext.jsx';
 
 const HaLastSyncedAnchorContext = createContext(null);
 
-function useHaLastSyncedAnchor() {
+export function useHaLastSyncedAnchor() {
   const ctx = useContext(HaLastSyncedAnchorContext);
   if (!ctx) {
     throw new Error('HaLastSynced components require HaLastSyncedProvider');
@@ -52,7 +52,7 @@ function mono(iso) {
   return Number.isNaN(d.getTime()) ? String(iso) : d.toISOString();
 }
 
-function useHaLastSyncedModel() {
+export function useHaLastSyncedModel() {
   const { anchorEl } = useHaLastSyncedAnchor();
   const { t, i18n } = useTranslation();
   const { selected, selectedInstance, isLoading: instancesLoading } = useInstance();
@@ -186,16 +186,24 @@ export function HaLastSyncedPopover({ placement = 'toolbar' }) {
   const { anchorEl, close } = useHaLastSyncedAnchor();
   const { selected, debugPanel, open } = useHaLastSyncedModel();
   const inToolbar = placement === 'toolbar';
+  const fromBottomNav = placement === 'bottomNav';
 
   if (!selected || !debugPanel) return null;
+
+  const anchorOrigin = fromBottomNav
+    ? { vertical: 'top', horizontal: 'center' }
+    : { vertical: 'bottom', horizontal: inToolbar ? 'right' : 'left' };
+  const transformOrigin = fromBottomNav
+    ? { vertical: 'bottom', horizontal: 'center' }
+    : { vertical: 'top', horizontal: inToolbar ? 'right' : 'left' };
 
   return (
     <Popover
       open={open}
       anchorEl={anchorEl}
       onClose={close}
-      anchorOrigin={{ vertical: 'bottom', horizontal: inToolbar ? 'right' : 'left' }}
-      transformOrigin={{ vertical: 'top', horizontal: inToolbar ? 'right' : 'left' }}
+      anchorOrigin={anchorOrigin}
+      transformOrigin={transformOrigin}
       slotProps={{
         paper: {
           sx: {

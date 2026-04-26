@@ -1,6 +1,7 @@
 import { Paper, Stack, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useTranslation } from 'react-i18next';
 import { splitEnergyDashboardTotals } from '../api/energyModel.js';
+import { SOLAR_POWER_ICON_PATH_D } from './flowDiagramCommon.jsx';
 import { formatKwh, formatWatts } from '../format.js';
 
 /**
@@ -812,12 +813,11 @@ function LeafIcon({ color }) {
   );
 }
 
+/** Same glyph as MUI `SolarPower`; inline SVG so size is correct inside the parent `<svg>`. */
 function SolarIcon({ color }) {
   return (
-    <svg {...iconProps(color)}>
-      <path d="M3 19h18" />
-      <path d="M5 19l2-10h10l2 10" fill={`${color}33`} />
-      <path d="M9 9v10M15 9v10M7 14h10" />
+    <svg width={28} height={28} viewBox="0 0 24 24" x={-14} y={-14} fill={color}>
+      <path d={SOLAR_POWER_ICON_PATH_D} />
     </svg>
   );
 }

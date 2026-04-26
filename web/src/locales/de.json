@@ -1,7 +1,12 @@
 {
   "app": {
-    "title": "HA Exporter",
+    "title": "Dahoamboard",
     "logout": "Abmelden",
+    "shareLink": "Einladungslink kopieren",
+    "shareLinkAria": "Anmeldelink für andere kopieren (nur Lesen)",
+    "shareLinkCopied": "Einladungslink in die Zwischenablage kopiert",
+    "shareLinkCopyFailed": "Kopieren fehlgeschlagen — URL unten markieren und manuell kopieren:",
+    "moreMenuAria": "Mehr: Erscheinungsbild, Sprache, Einladungslink, letzte Synchronisation, Abmelden",
     "language": "Sprache",
     "instance": "Instanz",
     "theme": {
@@ -15,12 +20,18 @@
     "summary": "Zusammenfassung",
     "electricity": "Strom",
     "gas": "Gas",
-    "now": "Live"
+    "now": "Live",
+    "bottom": {
+      "summary": "Übersicht",
+      "electricity": "Strom",
+      "gas": "Gas",
+      "now": "Live"
+    }
   },
   "login": {
-    "title": "Mit dem HA Exporter verbinden",
-    "description": "Füge das Bearer-Token ein, das du in der Home Assistant Integration konfiguriert hast. Es wird nur in diesem Browser gespeichert.",
-    "tokenLabel": "Bearer-Token",
+    "title": "Mit Dahoamboard verbinden",
+    "description": "Füge das Token für dieses Dahoamboard ein. Es wird nur in diesem Browser gespeichert.",
+    "tokenLabel": "Token",
     "submit": "Weiter",
     "invalid": "Der Server hat das Token abgelehnt.",
     "offline": "Der Server antwortet nicht. Ist der Endpunkt erreichbar?"
@@ -38,7 +49,9 @@
     "prev": "Vorheriger Tag / Bereich",
     "next": "Nächster Tag / Bereich",
     "prevAria": "Einen Tag zurück oder den Bereich einen Tag nach hinten schieben",
-    "nextAria": "Einen Tag vor oder den Bereich einen Tag nach vorne schieben"
+    "nextAria": "Einen Tag vor oder den Bereich einen Tag nach vorne schieben",
+    "tapToChangeAria": "Zeitraum ändern. Aktuell: {{range}}",
+    "pickerSheetTitle": "Zeitraum"
   },
   "units": {
     "kwh": "kWh",
@@ -46,7 +59,8 @@
     "kw": "kW",
     "w": "W",
     "kgCo2": "kg CO₂",
-    "treeYears": "gepflanzte Bäume"
+    "treeYears": "gepflanzte Bäume",
+    "treeYearsAbbr": "B·J."
   },
   "summary": {
     "distribution": "Energieverteilung",
@@ -89,15 +103,29 @@
     "insightLast30": "Letzte 30 Tage",
     "insightSelectedRange": "Ausgewählter Zeitraum",
     "insightAllData": "Alle gespeicherten Daten",
-    "heroCurrentView": "Aktuelle Ansicht",
-    "heroConsumptionFootnote": "Anteile von PV, Batterie und Netz an der aktuellen Last",
-    "heroCurrentViewUnavailable": "Für die Live‑Aufteilung werden die Leistungssensoren aus dem Energie‑Dashboard benötigt (wie auf der Live‑Seite).",
-    "heroSolarProduction": "PV‑Erzeugung",
-    "heroStatConsumptionTagline": "Aktuelle Last",
+    "sectionTotalYieldTitle": "Gesamtertrag",
+    "widgetPlaceholder": "Hier entsteht eine neue Kachel",
+    "widgetPlaceholderAria": "Platzhalter für ein künftiges Zusammenfassungs-Widget",
+    "livePowerBarTitle": "Aktuelle Leistung je Quelle",
+    "livePowerBarHome": "Heim",
+    "livePowerBarHomePowerAria": "Heim: {{w}}",
+    "livePowerBarSegGrid": "Netz",
+    "livePowerBarSegBattery": "Batterie",
+    "livePowerBarSegSolar": "PV",
+    "livePowerBarSegToBattery": "→ Speicher",
+    "livePowerBarSegToGrid": "→ Netz",
+    "livePowerBarNoSensors": "Live-Daten brauchen die Leistungssensoren im Energie-Dashboard (wie Live).",
+    "livePowerBarAria": "Aktuelle Leistungsaufteilung; Heimverbrauch ca. {{w}}",
+    "sectionRangeTitle": "Dieser Zeitraum",
+    "insightRangeCardCost": "Kosten",
+    "insightRangeCardSavings": "Erspart",
+    "insightRangeCardCo2": "CO₂",
+    "insightRangeCardTrees": "Bäume (Äq.)",
     "heroStatSolarTagline": "kWh‑Ertrag",
     "heroStatTreesTagline": "Gepflanzte Bäume",
-    "heroStatCo2Tagline": "CO₂ vermieden",
-    "heroStatSavingsTagline": "Kosten gespart",
+    "heroStatCo2Tagline": "kg CO₂ vermieden",
+    "heroStatSavingsTagline": "€ Kosten gespart",
+    "heroSolarProduction": "PV‑Erzeugung",
     "heroAllStoredCaption": "Alle gespeicherten Daten",
     "insightMethodAria": "Wie diese Schätzung zustande kommt",
     "lastSyncedFromHa": "Zuletzt von Home Assistant synchronisiert: {{time}}",
@@ -146,7 +174,9 @@
   },
   "now": {
     "title": "Live",
-    "subtitle": "Leistung über den Tag und wohin die Energie floss",
+    "subtitle": "Leistung im Zeitverlauf und aktueller Verbrauch je Gerät",
+    "devicesTitle": "Leistung pro Gerät (jetzt)",
+    "devicesEmptyWatts": "Keine Leistungswerte je Gerät. Richte pro Zeile im Energie-Dashboard von Home Assistant einen Leistungssensor (`stat_rate`) ein.",
     "noLatest": "Noch keine Live-Werte. Warte auf den nächsten Push.",
     "noPowerSensors": "Im Energie-Dashboard von Home Assistant sind keine Leistungssensoren (stat_rate) konfiguriert. Füge sie dort hinzu und sie erscheinen hier.",
     "lastUpdated": "aktualisiert",

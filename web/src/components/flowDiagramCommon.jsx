@@ -1,3 +1,7 @@
+/** Material Design `SolarPower` path (same as `@mui/icons-material/SolarPower`). */
+export const SOLAR_POWER_ICON_PATH_D =
+  'M3.33 16H11v-3H4zM13 16h7.67L20 13h-7zm8.11 2H13v4h9zM2 22h9v-4H2.89zm9-14h2v3h-2zm4.7647-.7949 1.4142-1.4142 2.1213 2.1213-1.4142 1.4142zm-11.0598.7077 2.1213-2.1213 1.4142 1.4142L6.1191 9.327zM3 2h3v2H3zm15 0h3v2h-3zm-6 5c2.76 0 5-2.24 5-5H7c0 2.76 2.24 5 5 5';
+
 // Shared primitives for both the historical energy flow diagram
 // (EnergyFlowDiagram.jsx) and the live power flow diagram
 // (LivePowerFlow.jsx). Geometry + node rendering are identical between the
@@ -94,9 +98,9 @@ export function nn(v) {
 }
 
 // --------------------------------------------------------------------------- //
-// Inline SVG icons. Kept as SVG-native components so they compose inside the
-// parent <svg> without needing foreignObject. Placed at (0,0) — callers
-// wrap them in <g transform="translate(...)" />.
+// Inline SVG icons for use inside the parent <svg> (MUI SvgIcon is unreliable
+// there: CSS `1em` sizing can collapse to the SVG default ~300×150 user units).
+// Placed at (0,0) — callers wrap them in <g transform="translate(...)" />.
 // --------------------------------------------------------------------------- //
 
 function iconProps(color) {
@@ -125,10 +129,8 @@ export function LeafIcon({ color }) {
 
 export function SolarIcon({ color }) {
   return (
-    <svg {...iconProps(color)}>
-      <path d="M3 19h18" />
-      <path d="M5 19l2-10h10l2 10" fill={`${color}33`} />
-      <path d="M9 9v10M15 9v10M7 14h10" />
+    <svg width={28} height={28} viewBox="0 0 24 24" x={-14} y={-14} fill={color}>
+      <path d={SOLAR_POWER_ICON_PATH_D} />
     </svg>
   );
 }

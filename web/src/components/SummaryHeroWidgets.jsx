@@ -1,22 +1,18 @@
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ParkOutlinedIcon from '@mui/icons-material/ParkOutlined';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
-import SensorsOutlinedIcon from '@mui/icons-material/SensorsOutlined';
-import WbSunnyOutlinedIcon from '@mui/icons-material/WbSunnyOutlined';
+import ShowChartOutlinedIcon from '@mui/icons-material/ShowChartOutlined';
+import SolarPowerIcon from '@mui/icons-material/SolarPower';
 import EnergySavingsLeafOutlinedIcon from '@mui/icons-material/EnergySavingsLeafOutlined';
-import ElectricBoltOutlinedIcon from '@mui/icons-material/ElectricBoltOutlined';
-import { useLayoutEffect, useRef, useState } from 'react';
-import { Box, IconButton, Paper, Skeleton, Stack, Tooltip, Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useState } from 'react';
+import { Box, IconButton, Paper, Popover, Skeleton, Stack, Tooltip, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
-import { formatCurrency, formatKwh, formatNumber, formatWatts } from '../format.js';
+import { formatCurrency, formatKwh, formatNumber } from '../format.js';
 
 /**
  * @param {{
- *   liveFlowW: null | {
- *     solarToHome: number, gridToHome: number, batteryToHome: number,
- *   },
  *   solarTotalLifeKwh: number,
  *   metricsLife: import('../api/summaryMetrics.js').SummaryMetricsSlice | null,
  *   currency: string,
@@ -24,7 +20,6 @@ import { formatCurrency, formatKwh, formatNumber, formatWatts } from '../format.
  * }} props
  */
 export function SummaryHeroWidgets({
-  liveFlowW,
   solarTotalLifeKwh,
   metricsLife,
   currency,
@@ -37,9 +32,19 @@ export function SummaryHeroWidgets({
 
   const fmtMoney = (v) =>
     v != null && Number.isFinite(v) ? formatCurrency(v, lng, currency) : '—';
+  /** Number only; currency symbol and context are in the tagline (same for all-time and range). */
+  const fmtMoneyValue = (v) =>
+    v != null && Number.isFinite(v)
+      ? formatNumber(v, lng, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '—';
   const fmtKg = (v) =>
     v != null && Number.isFinite(v)
       ? `${formatNumber(v, lng, { maximumFractionDigits: 2 })} ${t('units.kgCo2')}`
+      : '—';
+  /** Hero tile: numeric mass only; tagline names kg CO₂ avoided. */
+  const fmtKgValue = (v) =>
+    v != null && Number.isFinite(v)
+      ? formatNumber(v, lng, { maximumFractionDigits: 2 })
       : '—';
   const fmtTrees = (v) =>
     v != null && Number.isFinite(v)
@@ -49,158 +54,73 @@ export function SummaryHeroWidgets({
   const fmtTreesCount = (v) =>
     v != null && Number.isFinite(v) ? formatNumber(v, lng, { maximumFractionDigits: 1 }) : '—';
 
-  const solarW = liveFlowW?.solarToHome ?? null;
-  const batteryW = liveFlowW?.batteryToHome ?? null;
-  const gridW = liveFlowW?.gridToHome ?? null;
-  const hasLiveSplit = liveFlowW != null;
-  const totalW =
-    hasLiveSplit && [solarW, batteryW, gridW].some((v) => v != null && Number.isFinite(v))
-      ? (solarW ?? 0) + (batteryW ?? 0) + (gridW ?? 0)
-      : null;
-
-  const splitParts = [
-    { key: 'solar', label: t('summary.flow.pv'), w: solarW, color: c.solar },
-    { key: 'battery', label: t('summary.flow.battery'), w: batteryW, color: c.battery },
-    { key: 'grid', label: t('summary.flow.grid'), w: gridW, color: c.grid },
-  ];
-
   return (
-    <Box
-      sx={{
-        display: 'grid',
-        gap: { xs: 1.5, sm: 2 },
-        gridTemplateColumns: {
-          xs: '1fr',
-          sm: 'repeat(2, minmax(0, 1fr))',
-          md: 'repeat(5, minmax(0, 1fr))',
-        },
-      }}
-    >
-      <Paper
+    <Stack spacing={{ xs: 1.25, sm: 1.5 }} sx={{ width: '100%', minWidth: 0 }}>
+      <Box component="header" sx={{ minWidth: 0 }}>
+        <Stack
+          direction="row"
+          alignItems="flex-start"
+          spacing={1.5}
+          useFlexGap
+          sx={{ minWidth: 0 }}
+        >
+          <ShowChartOutlinedIcon
+            sx={{ color: 'text.secondary', fontSize: 20, flexShrink: 0, mt: 0.25 }}
+            aria-hidden
+          />
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography
+              variant="overline"
+              color="text.secondary"
+              component="h2"
+              sx={{ fontWeight: 700, letterSpacing: 0.08, lineHeight: 1.35, display: 'block' }}
+            >
+              {t('summary.sectionTotalYieldTitle')}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ lineHeight: 1.4, display: 'block' }}
+            >
+              {t('summary.heroAllStoredCaption')}
+            </Typography>
+          </Box>
+        </Stack>
+      </Box>
+      <Box
         sx={{
-          p: { xs: 1.75, sm: 2 },
-          height: '100%',
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          boxSizing: 'border-box',
+          display: 'grid',
+          width: '100%',
+          minWidth: 0,
+          gap: { xs: 1, sm: 1.15, md: 1.25 },
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         }}
       >
-        {loading ? (
-          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Skeleton variant="rounded" width={44} height={44} sx={{ flexShrink: 0 }} />
-              <Skeleton variant="text" sx={{ flex: 1 }} height={32} />
-            </Stack>
-            <Skeleton variant="text" width="75%" height={14} />
-            <Skeleton variant="rounded" width="100%" height={40} />
-          </Stack>
-        ) : !hasLiveSplit ? (
-          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Tooltip title={t('summary.heroCurrentViewUnavailable')}>
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 1.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                    bgcolor: 'action.hover',
-                    color: 'text.disabled',
-                  }}
-                >
-                  <SensorsOutlinedIcon sx={{ fontSize: 24 }} />
-                </Box>
-              </Tooltip>
-              <Typography variant="h6" className="num" color="text.disabled" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
-                —
-              </Typography>
-            </Stack>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
-            >
-              {t('summary.heroStatConsumptionTagline')}
-            </Typography>
-          </Stack>
-        ) : (
-          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
-              <Tooltip title={t('summary.heroCurrentView')}>
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 1.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                    bgcolor: 'action.selected',
-                    color: 'primary.main',
-                  }}
-                >
-                  <ElectricBoltOutlinedIcon sx={{ fontSize: 24 }} />
-                </Box>
-              </Tooltip>
-              <Typography
-                variant="h6"
-                className="num"
-                sx={{
-                  fontWeight: 700,
-                  lineHeight: 1.2,
-                  fontFeatureSettings: '"tnum"',
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {totalW != null ? `${formatWatts(totalW, lng)} ${t('units.w')}` : '—'}
-              </Typography>
-              <Tooltip title={t('summary.heroConsumptionFootnote')}>
-                <IconButton
-                  size="small"
-                  aria-label={t('summary.heroConsumptionFootnote')}
-                  sx={{ flexShrink: 0, mr: -0.75 }}
-                >
-                  <InfoOutlinedIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
-            >
-              {t('summary.heroStatConsumptionTagline')}
-            </Typography>
-            <LiveConsumptionSplitBar segments={splitParts} lng={lng} t={t} />
-          </Stack>
-        )}
-      </Paper>
-
       <HeroStat
         tagline={t('summary.heroStatSolarTagline')}
         tooltip={`${t('summary.heroSolarProduction')} · ${t('summary.heroAllStoredCaption')}`}
-        icon={<WbSunnyOutlinedIcon sx={{ fontSize: 24 }} />}
+        icon={<SolarPowerIcon sx={{ fontSize: 20 }} />}
+        compact
         loading={loading}
         value={
           solarTotalLifeKwh > 0
-            ? `${formatKwh(solarTotalLifeKwh, lng)} ${t('units.kwh')}`
+            ? formatKwh(solarTotalLifeKwh, lng)
             : solarTotalLifeKwh === 0
-              ? `0 ${t('units.kwh')}`
+              ? formatKwh(0, lng)
               : '—'
+        }
+        valueAriaLabel={
+          solarTotalLifeKwh >= 0 && Number.isFinite(solarTotalLifeKwh)
+            ? `${formatKwh(solarTotalLifeKwh, lng)} ${t('units.kwh')}`
+            : undefined
         }
         accent={c.solar}
       />
       <HeroStat
         tagline={t('summary.heroStatTreesTagline')}
         tooltip={`${t('summary.insightTrees')} · ${t('summary.heroAllStoredCaption')}`}
-        icon={<ParkOutlinedIcon sx={{ fontSize: 24 }} />}
+        icon={<ParkOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
         loading={loading}
         value={fmtTreesCount(metricsLife?.treesEquivalent)}
         valueAriaLabel={fmtTrees(metricsLife?.treesEquivalent)}
@@ -209,142 +129,44 @@ export function SummaryHeroWidgets({
       <HeroStat
         tagline={t('summary.heroStatCo2Tagline')}
         tooltip={`${t('summary.insightCo2Saved')} · ${t('summary.heroAllStoredCaption')}`}
-        icon={<EnergySavingsLeafOutlinedIcon sx={{ fontSize: 24 }} />}
+        icon={<EnergySavingsLeafOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
         loading={loading}
-        value={fmtKg(metricsLife?.co2AvoidedKg)}
+        value={fmtKgValue(metricsLife?.co2AvoidedKg)}
+        valueAriaLabel={
+          metricsLife?.co2AvoidedKg != null && Number.isFinite(metricsLife.co2AvoidedKg)
+            ? fmtKg(metricsLife.co2AvoidedKg)
+            : undefined
+        }
         accent={c.co2Neutral ?? theme.palette.success.light}
       />
       <HeroStat
         tagline={t('summary.heroStatSavingsTagline')}
         tooltip={`${t('summary.insightTotalSavings')} · ${t('summary.heroAllStoredCaption')}`}
-        icon={<SavingsOutlinedIcon sx={{ fontSize: 24 }} />}
+        icon={<SavingsOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
         loading={loading}
-        value={fmtMoney(metricsLife?.footerSavings)}
+        value={fmtMoneyValue(metricsLife?.footerSavings)}
+        valueAriaLabel={
+          metricsLife?.footerSavings != null && Number.isFinite(metricsLife.footerSavings)
+            ? fmtMoney(metricsLife.footerSavings)
+            : undefined
+        }
         accent={c.solar ?? theme.palette.success.main}
         valueColor="success.main"
       />
-    </Box>
+      </Box>
+    </Stack>
   );
 }
-
-/** In-bar label when segment is at least this wide (px); otherwise value is tooltip-only. */
-const CONSUMPTION_BAR_LABEL_MIN_PX = 58;
 
 /**
- * Full-width stacked bar: segment width ∝ watts (solar, battery, grid).
+ * Shared tile for header metrics (lifetime hero row and range insight row).
  *
- * @param {{
- *   segments: Array<{ key: string, label: string, w: number | null, color?: string }>,
- *   lng: string,
- *   t: import('i18next').TFunction,
- * }} props
+ * @param {{ valueSuffix?: string, info?: string, infoAriaLabel?: string }} [extra] — optional
+ *   second part of the value (e.g. `kg CO₂`) and an info popover.
  */
-function LiveConsumptionSplitBar({ segments, lng, t }) {
-  const barRef = useRef(null);
-  const [barPx, setBarPx] = useState(0);
-
-  useLayoutEffect(() => {
-    const el = barRef.current;
-    if (!el) return undefined;
-    const read = () => setBarPx(el.getBoundingClientRect().width);
-    read();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(read);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const wattsList = segments.map((s) =>
-    Math.max(0, s.w != null && Number.isFinite(s.w) ? s.w : 0),
-  );
-  const total = wattsList.reduce((a, b) => a + b, 0);
-
-  return (
-    <Box
-      ref={barRef}
-      sx={{
-        display: 'flex',
-        width: '100%',
-        height: 40,
-        borderRadius: 1,
-        overflow: 'hidden',
-        border: 1,
-        borderColor: 'divider',
-      }}
-    >
-      {total <= 0 ? (
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: 'action.hover',
-          }}
-        >
-          <Typography variant="caption" color="text.secondary" className="num">
-            0 {t('units.w')}
-          </Typography>
-        </Box>
-      ) : (
-        segments.map((s, i) => {
-          const wn = wattsList[i];
-          if (wn <= 0) return null;
-          const pct = (wn / total) * 100;
-          const segPx = (barPx * pct) / 100;
-          const showLabel =
-            barPx > 32 ? segPx >= CONSUMPTION_BAR_LABEL_MIN_PX : pct >= 14;
-          const text = `${formatWatts(wn, lng)} ${t('units.w')}`;
-          const tip = `${s.label}: ${text}`;
-
-          const segment = (
-            <Box
-              aria-label={tip}
-              sx={{
-                width: `${pct}%`,
-                flexShrink: 0,
-                minWidth: 0,
-                bgcolor: s.color || 'grey.600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxSizing: 'border-box',
-                px: 0.5,
-              }}
-            >
-              {showLabel ? (
-                <Typography
-                  variant="caption"
-                  className="num"
-                  sx={{
-                    fontWeight: 700,
-                    lineHeight: 1.15,
-                    color: 'rgba(255,255,255,0.95)',
-                    textShadow: '0 1px 3px rgba(0,0,0,0.55)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    maxWidth: '100%',
-                  }}
-                >
-                  {text}
-                </Typography>
-              ) : null}
-            </Box>
-          );
-
-          return (
-            <Tooltip key={s.key} title={tip} disableHoverListener={showLabel} enterTouchDelay={0}>
-              {segment}
-            </Tooltip>
-          );
-        })
-      )}
-    </Box>
-  );
-}
-
-function HeroStat({
+export function HeroStat({
   tagline,
   tooltip,
   icon,
@@ -353,11 +175,24 @@ function HeroStat({
   accent,
   valueColor = 'text.primary',
   valueAriaLabel,
+  valueSuffix = null,
+  info = null,
+  infoAriaLabel = '',
+  compact = false,
 }) {
+  const theme = useTheme();
+  const showValueSuffix =
+    valueSuffix != null && String(valueSuffix) !== '' && value != null && String(value) !== '—';
+  const iconPx = compact ? 36 : 44;
+  const pad = compact
+    ? { xs: 1.15, sm: 1.25 }
+    : { xs: 1.75, sm: 2 };
+  const rowGap = compact ? 1 : 1.25;
+  const valueVariant = compact ? 'subtitle1' : 'h6';
   return (
     <Paper
       sx={{
-        p: { xs: 1.75, sm: 2 },
+        p: pad,
         height: '100%',
         minHeight: 0,
         display: 'flex',
@@ -365,63 +200,177 @@ function HeroStat({
         boxSizing: 'border-box',
       }}
     >
-      <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
-        {loading ? (
-          <>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Skeleton variant="rounded" width={44} height={44} sx={{ flexShrink: 0 }} />
-              <Skeleton variant="text" sx={{ flex: 1 }} height={32} />
-            </Stack>
-            <Skeleton variant="text" width="70%" height={14} />
-          </>
-        ) : (
-          <>
-            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
-              <Tooltip title={tooltip}>
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 1.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    bgcolor: accent ? `${accent}22` : 'action.hover',
-                    color: accent || 'text.primary',
-                    flexShrink: 0,
-                  }}
-                >
-                  {icon}
-                </Box>
-              </Tooltip>
-              <Typography
-                variant="h6"
-                className="num"
+      {loading ? (
+        <Stack direction="row" alignItems="center" spacing={rowGap} sx={{ minWidth: 0 }}>
+          <Skeleton
+            variant="rounded"
+            width={iconPx}
+            height={iconPx}
+            sx={{ flexShrink: 0, borderRadius: 1.5 }}
+          />
+          <Stack spacing={0.4} sx={{ flex: 1, minWidth: 0 }}>
+            <Skeleton variant="text" width={compact ? 72 : 88} height={compact ? 22 : 28} />
+            <Skeleton variant="text" width="80%" height={compact ? 12 : 14} />
+          </Stack>
+        </Stack>
+      ) : (
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={rowGap}
+          sx={{ minWidth: 0, width: '100%' }}
+        >
+          <Tooltip title={tooltip}>
+            <Box
+              sx={{
+                width: iconPx,
+                height: iconPx,
+                borderRadius: 1.5,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: accent ? alpha(accent, 0.12) : theme.palette.action.hover,
+                color: accent || 'text.primary',
+                flexShrink: 0,
+                '& .MuiSvgIcon-root': { fontSize: compact ? 20 : 24 },
+              }}
+            >
+              {icon}
+            </Box>
+          </Tooltip>
+          <Stack
+            spacing={compact ? 0.2 : 0.25}
+            sx={{ flex: 1, minWidth: 0, alignItems: 'flex-start' }}
+          >
+            {showValueSuffix ? (
+              <Box
+                role="group"
                 aria-label={valueAriaLabel}
                 sx={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 0.5,
+                  flexWrap: 'nowrap',
+                  minWidth: 0,
+                  maxWidth: '100%',
+                }}
+              >
+                <Typography
+                  variant={valueVariant}
+                  className="num"
+                  component="span"
+                  sx={{
+                    m: 0,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    fontFeatureSettings: '"tnum"',
+                    color: valueColor,
+                    flex: '0 1 auto',
+                    minWidth: 0,
+                    whiteSpace: 'nowrap',
+                    ...(compact ? { fontSize: '0.95rem' } : null),
+                  }}
+                >
+                  {value}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  component="span"
+                  className="num"
+                  color="text.secondary"
+                  sx={{
+                    fontWeight: 500,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                    ...(compact ? { fontSize: '0.75rem' } : null),
+                  }}
+                >
+                  {valueSuffix}
+                </Typography>
+              </Box>
+            ) : (
+              <Typography
+                variant={valueVariant}
+                className="num"
+                component="p"
+                aria-label={valueAriaLabel}
+                sx={{
+                  m: 0,
                   fontWeight: 700,
                   fontFeatureSettings: '"tnum"',
                   color: valueColor,
-                  wordBreak: 'break-word',
                   lineHeight: 1.2,
-                  flex: 1,
                   minWidth: 0,
+                  wordBreak: 'break-word',
+                  ...(compact ? { fontSize: '0.95rem' } : null),
                 }}
               >
                 {value}
               </Typography>
-            </Stack>
+            )}
             {tagline ? (
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
+                sx={{
+                  fontWeight: 600,
+                  lineHeight: 1.3,
+                  ...(compact ? { fontSize: '0.7rem' } : null),
+                }}
               >
                 {tagline}
               </Typography>
             ) : null}
-          </>
-        )}
-      </Stack>
+          </Stack>
+          {info ? <HeroStatInfo body={info} ariaLabel={infoAriaLabel} /> : null}
+        </Stack>
+      )}
     </Paper>
+  );
+}
+
+function HeroStatInfo({ body, ariaLabel }) {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+  if (!body) return null;
+  return (
+    <>
+      <IconButton
+        size="small"
+        onClick={(e) => setAnchorEl(e.currentTarget)}
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-haspopup="true"
+        sx={{
+          flexShrink: 0,
+          alignSelf: 'center',
+          color: 'text.secondary',
+          '&:hover': { color: 'primary.main', bgcolor: 'action.selected' },
+        }}
+      >
+        <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            sx: {
+              maxWidth: 360,
+              p: 2,
+              borderRadius: 2,
+              border: 1,
+              borderColor: 'divider',
+            },
+          },
+        }}
+      >
+        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+          {body}
+        </Typography>
+      </Popover>
+    </>
   );
 }

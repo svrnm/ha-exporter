@@ -9,6 +9,7 @@ DOMAIN: Final = "ha_exporter"
 CONF_ENDPOINT: Final = "endpoint"
 # Optional: duplicate uploads (e.g. dev + prod) with the same token and options.
 CONF_SECONDARY_ENDPOINT: Final = "second_endpoint"
+# Upload / remote-wipe secret; must match HA_EXPORTER_WRITE_TOKEN on the server.
 CONF_TOKEN: Final = "token"
 CONF_INTERVAL: Final = "interval"
 CONF_INCLUDE_ENERGY: Final = "include_energy"

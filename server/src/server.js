@@ -5,7 +5,7 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import express from 'express';
 
-import { bearerAuth } from './auth.js';
+import { createAuthMiddlewareFromEnv } from './auth.js';
 import { openDatabase } from './db.js';
 import { ingestRouter } from './routes/ingest.js';
 import {
@@ -46,7 +46,6 @@ const API_PREFIXES = [
 
 const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
-const TOKEN = process.env.HA_EXPORTER_TOKEN;
 const DB_PATH = process.env.DATABASE_PATH ?? DEFAULT_DB_PATH;
 const BODY_LIMIT = process.env.BODY_LIMIT ?? '50mb';
 const WEB_ROOT = process.env.WEB_ROOT ?? DEFAULT_WEB_ROOT;
@@ -62,7 +61,7 @@ const STATES_RETENTION_DAYS = parseInt(
 );
 const RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-function buildApp(db, token) {
+function buildApp(db, authMiddleware) {
   const app = express();
   app.disable('x-powered-by');
 
@@ -123,8 +122,8 @@ function buildApp(db, token) {
     console.log(`[server] no web UI bundle at ${WEB_ROOT} (API-only)`);
   }
 
-  // Everything below requires a valid bearer token.
-  app.use(bearerAuth(token));
+  // Everything below requires a valid bearer token (see auth.js).
+  app.use(authMiddleware);
 
   // `express.json()` already inflates gzip bodies automatically when
   // Content-Encoding: gzip is set (it uses raw-body + iconv-lite internally).
@@ -160,10 +159,13 @@ function buildApp(db, token) {
 }
 
 function main() {
-  if (!TOKEN) {
+  let authMiddleware;
+  try {
+    authMiddleware = createAuthMiddlewareFromEnv();
+  } catch (err) {
+    console.error(String(err?.message ?? err));
     console.error(
-      'HA_EXPORTER_TOKEN is not set. Refusing to start. ' +
-        'Copy .env.example to .env and set a token, or export it inline.',
+      'Refusing to start. Copy server/.env.example to server/.env and set HA_EXPORTER_READ_TOKEN and HA_EXPORTER_WRITE_TOKEN.',
     );
     process.exit(1);
   }
@@ -200,9 +202,12 @@ function main() {
     );
   }
 
-  const app = buildApp(db, TOKEN);
+  const app = buildApp(db, authMiddleware);
   const httpServer = app.listen(PORT, HOST, () => {
     console.log(`[server] listening on http://${HOST}:${PORT}`);
+    console.log(
+      '[server] API is bearer-protected; each request logs on completion, and auth failures also log as [server] auth: ...',
+    );
   });
 
   let shuttingDown = false;

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Alert, Box, Skeleton, Stack } from '@mui/material';
+import DateRangeOutlinedIcon from '@mui/icons-material/DateRangeOutlined';
+import { Alert, Box, Skeleton, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
@@ -22,6 +23,7 @@ import { PartialHistoryHint } from '../components/PartialHistoryHint.jsx';
 import {
   RangePicker,
   RANGES,
+  StickyDateToolbar,
   customDayYmd,
   isCustomDayRangeValue,
   isSpanRangeValue,
@@ -31,6 +33,7 @@ import {
 } from '../components/RangePicker.jsx';
 import { SummaryHeroWidgets } from '../components/SummaryHeroWidgets.jsx';
 import { SummaryInsightBoxes } from '../components/SummaryInsightBoxes.jsx';
+import { SummaryLivePowerBar } from '../components/SummaryLivePowerBar.jsx';
 import { SourcesTable } from '../components/SourcesTable.jsx';
 import { EnergyFlowDiagram } from '../components/EnergyFlowDiagram.jsx';
 import {
@@ -165,8 +168,7 @@ export function Summary() {
   );
   const solarTotalLife = sumList(model?.solar?.map((s) => totalsLifeByStat.get(s.stat)));
 
-  const heroLoading =
-    prefs.isLoading || bundleLife.stats.isLoading || latestStates.isLoading;
+  const heroLoading = prefs.isLoading || bundleLife.stats.isLoading;
 
   const weightedImportPrice = useMemo(
     () =>
@@ -417,28 +419,14 @@ export function Summary() {
 
   return (
     <Stack spacing={{ xs: 2, sm: 2.5 }}>
-      <Stack
-        direction={{ xs: 'column', sm: 'row' }}
-        spacing={1.5}
-        sx={{
-          justifyContent: 'space-between',
-          alignItems: { xs: 'stretch', sm: 'center' },
-          gap: 1.5,
-        }}
-      >
-        <RangePicker value={range} onChange={setRange} ranges={RANGES} />
-        {!loading && (
-          <PartialHistoryHint lagMs={statsCoverageLagMs} />
-        )}
-      </Stack>
-
-      <SummaryHeroWidgets
-        liveFlowW={liveFlowW}
-        solarTotalLifeKwh={solarTotalLife}
-        metricsLife={metricsLife}
-        currency={currency}
-        loading={heroLoading}
-      />
+      <StickyDateToolbar>
+        <RangePicker
+          value={range}
+          onChange={setRange}
+          ranges={RANGES}
+          hint={!loading ? <PartialHistoryHint lagMs={statsCoverageLagMs} /> : null}
+        />
+      </StickyDateToolbar>
 
       <Box
         sx={{
@@ -447,32 +435,86 @@ export function Summary() {
           gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 2fr) minmax(0, 1fr)' },
         }}
       >
-        {loading && !prefs.data ? (
-          <Skeleton variant="rounded" height={360} />
-        ) : (
-          <EnergyFlowDiagram
-            values={{
-              solar: solarTotal,
-              gridIn,
-              gridOut,
-              batteryIn,
-              batteryOut,
-              home,
-              gas: gasTotal,
-              co2Free,
-            }}
+        <Box
+          sx={{
+            minWidth: 0,
+            order: { xs: 1, md: 0 },
+            display: 'flex',
+            flexDirection: 'column',
+            height: { md: '100%' },
+            alignSelf: { md: 'stretch' },
+          }}
+        >
+          <SummaryLivePowerBar
             liveFlowW={liveFlowW}
-            batteryChargeFraction={batteryChargeFraction}
+            loading={latestStates.isLoading && !latestStates.data}
           />
-        )}
-        <Stack spacing={1.25}>
-          <SourcesTable rows={sourceRows} currency={currency} compact />
-          <SummaryInsightBoxes
-            metricsSelection={metricsSelection}
-            selectionLabel={selectionInsightLabel}
+        </Box>
+        <Box sx={{ minWidth: 0, order: { xs: 2, md: 0 } }}>
+          <SummaryHeroWidgets
+            solarTotalLifeKwh={solarTotalLife}
+            metricsLife={metricsLife}
             currency={currency}
-            loading={insightsLoading}
+            loading={heroLoading}
           />
+        </Box>
+        <Box sx={{ minWidth: 0, order: { xs: 3, md: 0 } }}>
+          {loading && !prefs.data ? (
+            <Skeleton variant="rounded" height={360} />
+          ) : (
+            <EnergyFlowDiagram
+              values={{
+                solar: solarTotal,
+                gridIn,
+                gridOut,
+                batteryIn,
+                batteryOut,
+                home,
+                gas: gasTotal,
+                co2Free,
+              }}
+              liveFlowW={liveFlowW}
+              batteryChargeFraction={batteryChargeFraction}
+            />
+          )}
+        </Box>
+        <Stack
+          spacing={1.25}
+          sx={{ minWidth: 0, order: { xs: 4, md: 0 } }}
+        >
+          <Box>
+            <Stack
+              direction="row"
+              alignItems="flex-start"
+              spacing={1.5}
+              useFlexGap
+              sx={{ mb: 1.25, minWidth: 0 }}
+            >
+              <DateRangeOutlinedIcon
+                sx={{ color: 'text.secondary', fontSize: 20, flexShrink: 0, mt: 0.25 }}
+                aria-hidden
+              />
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography
+                  variant="overline"
+                  color="text.secondary"
+                  component="h2"
+                  sx={{ fontWeight: 700, letterSpacing: 0.08, lineHeight: 1.35, display: 'block' }}
+                >
+                  {t('summary.sectionRangeTitle')}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.4, display: 'block' }}>
+                  {selectionInsightLabel}
+                </Typography>
+              </Box>
+            </Stack>
+            <SummaryInsightBoxes
+              metricsSelection={metricsSelection}
+              currency={currency}
+              loading={insightsLoading}
+            />
+          </Box>
+          <SourcesTable rows={sourceRows} currency={currency} compact />
         </Stack>
       </Box>
     </Stack>

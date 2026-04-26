@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
@@ -29,7 +29,7 @@ export function PartialHistoryHint({ lagMs, disabled = false }) {
     <Box
       sx={{
         flexShrink: 0,
-        alignSelf: { xs: 'flex-end', sm: 'center' },
+        alignSelf: 'center',
         lineHeight: 0,
       }}
     >
@@ -40,14 +40,14 @@ export function PartialHistoryHint({ lagMs, disabled = false }) {
         aria-expanded={open}
         aria-haspopup="true"
         sx={(theme) => ({
-          color: 'text.secondary',
+          color: 'warning.main',
           '&:hover': {
-            color: 'warning.main',
-            bgcolor: alpha(theme.palette.warning.main, 0.08),
+            color: 'warning.dark',
+            bgcolor: alpha(theme.palette.warning.main, 0.12),
           },
         })}
       >
-        <InfoOutlinedIcon sx={{ fontSize: 20 }} />
+        <WarningAmberOutlined sx={{ fontSize: 20 }} />
       </IconButton>
       <Popover
         open={open}

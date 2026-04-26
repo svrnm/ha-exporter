@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import {
   Box,
+  ButtonBase,
+  Drawer,
   FormControlLabel,
   IconButton,
   Switch,
@@ -8,9 +11,12 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useTranslation } from 'react-i18next';
 
 export const RANGES = ['today', 'yesterday', 'last7', 'last30'];
@@ -234,6 +240,30 @@ function ymdYesterday(now) {
 /**
  * @returns {{ kind: 'single', d: string } | { kind: 'span', from: string, to: string }}
  */
+function formatMobileRangeSummary(value, t, language) {
+  if (value === 'today' || value === 'yesterday' || value === 'last7' || value === 'last30') {
+    return t(`range.${value}`);
+  }
+  if (isCustomDayRangeValue(value)) {
+    const ymd = customDayYmd(value);
+    const b = localDayBoundsFromYmd(ymd);
+    if (!b) return ymd;
+    return new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(b.start);
+  }
+  if (isSpanRangeValue(value)) {
+    const p = parseSpanRangeValue(value);
+    if (!p) return '';
+    const fmt = (ymd) => {
+      const b = localDayBoundsFromYmd(ymd);
+      if (!b) return ymd;
+      return new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(b.start);
+    };
+    if (p.from === p.to) return fmt(p.from);
+    return `${fmt(p.from)} – ${fmt(p.to)}`;
+  }
+  return t('range.label');
+}
+
 export function getRangeDisplayYmds(value, now = new Date()) {
   if (value === 'last7' || value === 'last30') {
     return { kind: 'span', ...presetSpanYmds(value, now) };
@@ -262,16 +292,21 @@ export function getRangeDisplayYmds(value, now = new Date()) {
  * @param {unknown} [props.label]  `false` hides label
  * @param {number} [props.maxDayLookback=30]
  * @param {import('react').ReactNode} [props.rowExtra]
+ * @param {import('react').ReactNode} [props.hint]  e.g. partial-history control; shown on compact row and desktop trailing area (omit in sheet via parent).
+ * @param {'toolbar'|'sheet'} [props.layout]  `sheet`: bottom-sheet layout — no horizontal scroll, wrap instead.
  */
-export function RangePicker({
+function RangePickerControls({
   value,
   onChange,
   ranges = RANGES,
   label = false,
   maxDayLookback = 30,
   rowExtra = null,
+  hint = null,
+  layout = 'toolbar',
 }) {
   const { t } = useTranslation();
+  const isSheet = layout === 'sheet';
   const now = new Date();
   const { minD, maxD } = boundsYmdForPicker(now, maxDayLookback);
   const display = getRangeDisplayYmds(value, now);
@@ -367,17 +402,34 @@ export function RangePicker({
   const rangeSwitchChecked = showRangeUI;
   const rangeSwitchDisabled = value === 'last7' || value === 'last30';
 
+  const dateFieldSx = isSheet
+    ? {
+        flexShrink: 1,
+        width: '100%',
+        maxWidth: 220,
+        minWidth: 0,
+        '& .MuiOutlinedInput-root': { height: 32, alignItems: 'center' },
+      }
+    : {
+        flexShrink: 0,
+        width: 158,
+        minWidth: 158,
+        '& .MuiOutlinedInput-root': { height: 32, alignItems: 'center' },
+      };
+
   const centerDates = (
     <Box
       sx={{
         display: 'inline-flex',
         flexDirection: 'row',
         alignItems: 'center',
-        flexWrap: 'nowrap',
-        justifyContent: 'center',
+        flexWrap: isSheet ? 'wrap' : 'nowrap',
+        justifyContent: isSheet ? 'flex-start' : 'center',
         gap: 1,
         minWidth: 0,
-        flexShrink: 0,
+        flexShrink: isSheet ? 1 : 0,
+        width: isSheet ? '100%' : undefined,
+        maxWidth: '100%',
       }}
     >
       <Tooltip title={t('range.prev')}>
@@ -406,12 +458,7 @@ export function RangePicker({
               emitSpan(vv, display.to);
             }}
             inputProps={{ min: minD, max: maxD }}
-            sx={{
-              flexShrink: 0,
-              width: 158,
-              minWidth: 158,
-              '& .MuiOutlinedInput-root': { height: 32, alignItems: 'center' },
-            }}
+            sx={dateFieldSx}
           />
           <Typography
             variant="body2"
@@ -432,12 +479,7 @@ export function RangePicker({
               emitSpan(display.from, vv);
             }}
             inputProps={{ min: minD, max: maxD }}
-            sx={{
-              flexShrink: 0,
-              width: 158,
-              minWidth: 158,
-              '& .MuiOutlinedInput-root': { height: 32, alignItems: 'center' },
-            }}
+            sx={dateFieldSx}
           />
         </>
       ) : (
@@ -451,12 +493,7 @@ export function RangePicker({
             emitSingle(v);
           }}
           inputProps={{ min: minD, max: maxD }}
-          sx={{
-            flexShrink: 0,
-            width: 158,
-            minWidth: 158,
-            '& .MuiOutlinedInput-root': { height: 32, alignItems: 'center' },
-          }}
+          sx={dateFieldSx}
         />
       )}
       <Tooltip title={t('range.next')}>
@@ -485,6 +522,7 @@ export function RangePicker({
         sx={{
           m: 0,
           flexShrink: 0,
+          ...(isSheet ? { flexBasis: '100%', width: '100%', mt: 0.25 } : {}),
           '& .MuiFormControlLabel-label': { fontSize: '0.8125rem' },
         }}
       />
@@ -495,15 +533,15 @@ export function RangePicker({
     <Box
       sx={{
         display: 'flex',
-        flexDirection: 'row',
-        flexWrap: 'nowrap',
-        alignItems: 'center',
+        flexDirection: isSheet ? 'column' : 'row',
+        flexWrap: isSheet ? 'nowrap' : 'nowrap',
+        alignItems: isSheet ? 'stretch' : 'center',
         gap: 1.5,
         width: '100%',
         minWidth: 0,
         py: 0.25,
-        overflowX: 'auto',
-        WebkitOverflowScrolling: 'touch',
+        overflowX: isSheet ? 'hidden' : 'auto',
+        ...(isSheet ? {} : { WebkitOverflowScrolling: 'touch' }),
         '& .MuiTypography-body2': { lineHeight: 1.2 },
       }}
     >
@@ -522,7 +560,13 @@ export function RangePicker({
         exclusive
         size="small"
         onChange={(_, v) => v && onChange(v)}
-        sx={{ flexShrink: 0 }}
+        sx={{
+          flexShrink: 0,
+          alignSelf: isSheet ? 'flex-start' : undefined,
+          flexWrap: isSheet ? 'wrap' : 'nowrap',
+          maxWidth: '100%',
+          rowGap: 0.5,
+        }}
       >
         {ranges.map((r) => (
           <ToggleButton key={r} value={r}>
@@ -531,21 +575,182 @@ export function RangePicker({
         ))}
       </ToggleButtonGroup>
       {centerDates}
-      {rowExtra != null && (
+      {(rowExtra != null || hint != null) && (
         <Box
           sx={{
             display: 'inline-flex',
             flexDirection: 'row',
             alignItems: 'center',
             flexShrink: 0,
-            flexWrap: 'nowrap',
+            flexWrap: isSheet ? 'wrap' : 'nowrap',
             gap: 1.5,
-            marginLeft: 'auto',
+            marginLeft: isSheet ? 0 : 'auto',
+            width: isSheet ? '100%' : undefined,
+            maxWidth: '100%',
+            justifyContent: isSheet ? 'flex-start' : undefined,
           }}
         >
           {rowExtra}
+          {hint}
         </Box>
       )}
+    </Box>
+  );
+}
+
+export function RangePicker(props) {
+  const theme = useTheme();
+  const isCompact = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
+  const { t, i18n } = useTranslation();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const summary = formatMobileRangeSummary(
+    props.value,
+    t,
+    i18n.resolvedLanguage || i18n.language || 'en',
+  );
+
+  if (!isCompact) {
+    return <RangePickerControls {...props} />;
+  }
+
+  const wrappedOnChange = (v) => {
+    props.onChange(v);
+    setSheetOpen(false);
+  };
+
+  return (
+    <>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.25,
+          width: '100%',
+          minWidth: 0,
+        }}
+      >
+        <ButtonBase
+          onClick={() => setSheetOpen(true)}
+          aria-expanded={sheetOpen}
+          aria-haspopup="dialog"
+          aria-label={t('range.tapToChangeAria', { range: summary })}
+          sx={(th) => ({
+            flex: 1,
+            minWidth: 0,
+            justifyContent: 'flex-start',
+            textAlign: 'left',
+            borderRadius: 2,
+            px: 1.25,
+            py: 0.75,
+            color: 'primary.main',
+            border: '1px dashed',
+            borderColor: 'primary.main',
+            bgcolor: alpha(th.palette.primary.main, 0.08),
+            transition: th.transitions.create(['background-color', 'border-color'], {
+              duration: th.transitions.duration.shortest,
+            }),
+            '&:hover': {
+              bgcolor: alpha(th.palette.primary.main, 0.14),
+              borderColor: 'primary.dark',
+            },
+            '&.Mui-focusVisible': {
+              outline: `2px solid ${th.palette.primary.main}`,
+              outlineOffset: 2,
+            },
+          })}
+        >
+          <Box
+            component="span"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              minWidth: 0,
+              width: '100%',
+            }}
+          >
+            <Typography
+              component="span"
+              variant="body2"
+              noWrap
+              title={summary}
+              sx={{ fontWeight: 700, flex: 1, minWidth: 0 }}
+            >
+              {summary}
+            </Typography>
+            <ExpandMore sx={{ fontSize: 22, flexShrink: 0, opacity: 0.9 }} aria-hidden />
+          </Box>
+        </ButtonBase>
+        {props.hint}
+      </Box>
+      <Drawer
+        anchor="bottom"
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              maxHeight: 'min(92dvh, 720px)',
+              overflowX: 'hidden',
+              pb: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+            },
+          },
+        }}
+      >
+        <Box sx={{ px: 2, pt: 1, maxWidth: '100%', width: '100%', mx: 'auto', overflowX: 'hidden' }}>
+          <Box
+            sx={{ width: 40, height: 4, borderRadius: 2, bgcolor: 'action.disabled', mx: 'auto', mb: 1 }}
+          />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+            {t('range.pickerSheetTitle')}
+          </Typography>
+          <Box
+            sx={{
+              overflowX: 'hidden',
+              overflowY: 'auto',
+              maxHeight: 'calc(92dvh - 120px)',
+            }}
+          >
+            <RangePickerControls
+              {...props}
+              onChange={wrappedOnChange}
+              hint={null}
+              layout="sheet"
+            />
+          </Box>
+        </Box>
+      </Drawer>
+    </>
+  );
+}
+
+/**
+ * Keeps the date / range controls visible while the page scrolls. `top` matches
+ * AppShell: compact (viewport below `md`) has no app bar; desktop leaves room for toolbar + tabs.
+ */
+export function StickyDateToolbar({ children }) {
+  const theme = useTheme();
+  const isCompactShell = useMediaQuery(theme.breakpoints.down('md'), { noSsr: true });
+  const top = isCompactShell
+    ? 'max(4px, env(safe-area-inset-top, 0px))'
+    : `calc(${theme.spacing(7)} + 48px)`;
+
+  return (
+    <Box
+      sx={{
+        position: 'sticky',
+        zIndex: theme.zIndex.appBar - 1,
+        top,
+        py: 0.75,
+        mb: 0.5,
+        mx: { xs: -2, sm: -3 },
+        px: { xs: 2, sm: 3 },
+        bgcolor: 'background.default',
+      }}
+    >
+      {children}
     </Box>
   );
 }

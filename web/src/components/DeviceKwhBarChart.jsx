@@ -13,18 +13,24 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatKwh } from '../format.js';
+import { formatKwh, formatWatts } from '../format.js';
 
 /**
  * Recharts' default tooltip sets text color to the bar/segment color (`entry.color`),
  * which is often a dark swatch and reads as black on dark `background.paper`.
  */
-function KwhBarTooltipContent({ active, payload, label }) {
-  const { i18n } = useTranslation();
+function DeviceBarTooltipContent({ active, payload, label, valueUnit = 'kwh' }) {
+  const { t, i18n } = useTranslation();
   if (!active || !payload?.length) return null;
   const row = payload[0];
   const v = row?.value;
   const name = label != null && String(label) !== '' ? label : row?.name;
+  const valueLine =
+    v == null || !Number.isFinite(Number(v))
+      ? '—'
+      : valueUnit === 'watt'
+        ? `${formatWatts(Number(v), i18n.language)} ${t('units.w')}`
+        : `${formatKwh(Number(v), i18n.language)} ${t('units.kwh')}`;
   return (
     <Box
       sx={{
@@ -45,13 +51,14 @@ function KwhBarTooltipContent({ active, payload, label }) {
         </Typography>
       ) : null}
       <Typography variant="body2" className="num" color="text.primary" sx={{ fontWeight: 600, mt: name ? 0.25 : 0 }}>
-        {v == null || !Number.isFinite(Number(v)) ? '—' : `${formatKwh(Number(v), i18n.language)} kWh`}
+        {valueLine}
       </Typography>
     </Box>
   );
 }
 
 const MIN_BAR_KWH = 0.000_001;
+const MIN_BAR_W = 0.5;
 const BAR_H = 22;
 const H_PAD = 100;
 
@@ -71,19 +78,32 @@ const BAR_TINTS = [
 ];
 
 /**
- * All tracked devices, sorted by kWh, as horizontal bars (Energy dashboard style).
+ * All tracked devices, sorted by value, as horizontal bars (Energy dashboard style).
+ * `valueUnit`: `kwh` (default) for period energy, or `watt` for instant power.
  * Optional `titleInfo` shows an info icon (popover) next to the title.
  */
-export function DeviceKwhBarChart({ devices, title, headerAction = null, titleInfo = null }) {
+export function DeviceKwhBarChart({
+  devices,
+  title,
+  headerAction = null,
+  titleInfo = null,
+  valueUnit = 'kwh',
+  emptyText = null,
+}) {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const isWatt = valueUnit === 'watt';
+  const minV = isWatt ? MIN_BAR_W : MIN_BAR_KWH;
+  const axisLabel = isWatt ? t('units.w') : t('units.kwh');
+  const emptyDefault = isWatt ? t('now.devicesEmptyWatts') : t('electricity.devicesEmpty');
+  const empty = emptyText ?? emptyDefault;
 
   const data = useMemo(() => {
     return (devices ?? [])
-      .filter((d) => d.value > MIN_BAR_KWH)
+      .filter((d) => d.value > minV)
       .map((d) => ({ name: d.name, value: d.value }))
       .sort((a, b) => b.value - a.value);
-  }, [devices]);
+  }, [devices, minV]);
 
   const xMax = useMemo(() => {
     const m = data.reduce((a, d) => Math.max(a, d.value), 0);
@@ -121,7 +141,7 @@ export function DeviceKwhBarChart({ devices, title, headerAction = null, titleIn
         </Stack>
         {data.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            {t('electricity.devicesEmpty')}
+            {empty}
           </Typography>
         ) : (
           <Box sx={{ width: '100%', height: h }}>
@@ -140,13 +160,16 @@ export function DeviceKwhBarChart({ devices, title, headerAction = null, titleIn
                 <XAxis
                   type="number"
                   domain={[0, xMax]}
-                  tickFormatter={(v) =>
-                    v == null || !Number.isFinite(Number(v)) ? '' : formatKwh(Number(v), i18n.language)
-                  }
+                  tickFormatter={(v) => {
+                    if (v == null || !Number.isFinite(Number(v))) return '';
+                    return isWatt
+                      ? formatWatts(Number(v), i18n.language)
+                      : formatKwh(Number(v), i18n.language);
+                  }}
                   tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
                   tickLine={{ stroke: theme.palette.divider }}
                   label={{
-                    value: t('units.kwh'),
+                    value: axisLabel,
                     position: 'insideBottomRight',
                     offset: -4,
                     style: { fill: theme.palette.text.secondary, fontSize: 11 },
@@ -163,7 +186,7 @@ export function DeviceKwhBarChart({ devices, title, headerAction = null, titleIn
                 />
                 <Tooltip
                   cursor={{ fill: tooltipCursorFill }}
-                  content={KwhBarTooltipContent}
+                  content={(props) => <DeviceBarTooltipContent {...props} valueUnit={valueUnit} />}
                 />
                 <Bar
                   dataKey="value"

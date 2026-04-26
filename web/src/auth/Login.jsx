@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import BoltIcon from '@mui/icons-material/Bolt';
+import HomeIcon from '@mui/icons-material/Home';
 
 import { useAuth } from './AuthProvider.jsx';
 import { createClient, ApiError } from '../api/client.js';
@@ -76,7 +76,7 @@ export function Login() {
                 color: 'common.black',
               }}
             >
-              <BoltIcon />
+              <HomeIcon />
             </Box>
             <Box>
               <Typography variant="h6">{t('app.title')}</Typography>

@@ -5,6 +5,7 @@ import asyncio
 import gzip
 import json
 import logging
+from datetime import datetime
 from typing import Any, Callable
 
 import aiohttp
@@ -50,6 +51,7 @@ class Uploader:
         verify_ssl: bool = True,
         instance_id_provider: Callable[[], str] | None = None,
         energy_prefs_provider: Callable[[], dict[str, Any] | None] = None,
+        entry_id: str | None = None,
     ) -> None:
         if not endpoints:
             raise ValueError("at least one endpoint is required")
@@ -60,14 +62,26 @@ class Uploader:
         self._verify_ssl = verify_ssl
         self._instance_id = instance_id_provider
         self._energy_prefs = energy_prefs_provider
+        self._entry_id = entry_id
         self._push_lock = asyncio.Lock()
         self._backoff = MIN_BACKOFF
         self._failing = False
+        self._last_success_at: datetime | None = None
 
     @property
     def url(self) -> str:
         """Primary ingest URL (first configured base)."""
         return _ingest_url(self._endpoints[0])
+
+    @property
+    def last_success_at(self) -> datetime | None:
+        """UTC time of the last successful POST to the primary ingest endpoint."""
+        return self._last_success_at
+
+    @property
+    def is_failing(self) -> bool:
+        """True while the primary endpoint is in retry/backoff after a failure."""
+        return self._failing
 
     def _instance_delete_url(self, base: str, *, full: bool) -> str | None:
         inst = self._instance_id() if self._instance_id else None
@@ -175,9 +189,11 @@ class Uploader:
                         await self._buffer.async_flush()
                         self._backoff = MIN_BACKOFF
                         self._failing = False
+                        self._last_success_at = dt_util.utcnow()
                         self._hass.bus.async_fire(
                             EVENT_PUSHED,
                             {
+                                "entry_id": self._entry_id,
                                 "states": len(states_batch),
                                 "statistics": len(stats_batch),
                                 "status": status,
@@ -226,6 +242,7 @@ class Uploader:
                     )
                     self._buffer.ack(len(states_batch), len(stats_batch))
                     await self._buffer.async_flush()
+                    self._failing = False
                     return True
 
             except (asyncio.TimeoutError, ClientError) as err:

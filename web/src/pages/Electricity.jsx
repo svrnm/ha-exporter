@@ -21,22 +21,21 @@ import {
   cumulativeFlowStatIdsForCoverage,
   maxStatisticCoverageLagMs,
 } from '../api/energyModel.js';
-import { buildHierarchicalSankeyData } from '../api/energySankeyGraph.js';
 import { buildSankeyTotals } from '../api/sankeyTotals.js';
 import { PartialHistoryHint } from '../components/PartialHistoryHint.jsx';
 import {
   allowsFiveMinuteForRange,
   RangePicker,
   RANGES,
+  StickyDateToolbar,
   resolveRange,
 } from '../components/RangePicker.jsx';
 import { DeviceKwhBarChart } from '../components/DeviceKwhBarChart.jsx';
 import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
-import { PowerFlowSankey } from '../components/PowerFlowSankey.jsx';
 import { useUrlSyncedRange } from '../hooks/useUrlSyncedRange.js';
 
 export function Electricity() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const theme = useTheme();
   const { selected } = useInstance();
@@ -80,26 +79,6 @@ export function Electricity() {
   const sankey = useMemo(
     () => buildSankeyTotals(model, statsForFlow, []),
     [model, statsForFlow],
-  );
-
-  const sankeyGraph = useMemo(
-    () =>
-      model && sankey.totalByStat instanceof Map && sankey.totalByStat.size > 0
-        ? buildHierarchicalSankeyData(
-            model,
-            sankey.totalByStat,
-            sankey.totals,
-            {
-              t,
-              c: theme.palette.energy || {},
-              theme,
-              groupRestLabel: t('electricity.sankeyGroupRest'),
-              areaUnassignedLabel: t('electricity.sankeyAreaUnassigned'),
-              floorNoLevelLabel: t('electricity.sankeyFloorNoLevel'),
-            },
-          )
-        : { nodes: [], links: [] },
-    [model, sankey.totals, sankey.totalByStat, t, theme],
   );
 
   const refetchAction = useMemo(
@@ -222,55 +201,56 @@ export function Electricity() {
 
   return (
     <Stack spacing={{ xs: 2, sm: 2.5 }}>
-      <RangePicker
-        value={range}
-        onChange={setRange}
-        ranges={RANGES}
-        rowExtra={
-          <Box
-            sx={{
-              display: 'inline-flex',
-              flexDirection: 'row',
-              alignItems: 'center',
-              flexShrink: 0,
-              flexWrap: 'nowrap',
-              gap: 1.5,
-            }}
-          >
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              component="span"
-              sx={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}
-            >
-              {t('electricity.resolution')}
-            </Typography>
-            <ToggleButtonGroup
-              size="small"
-              exclusive
-              value={effectiveResolution}
-              onChange={(_, v) => {
-                if (v && allowsFiveMinuteForRange(range)) setResolution(v);
-                else if (v) setResolution('hour');
+      <StickyDateToolbar>
+        <RangePicker
+          value={range}
+          onChange={setRange}
+          ranges={RANGES}
+          hint={!flowLoading ? <PartialHistoryHint lagMs={statsCoverageLagMs} /> : null}
+          rowExtra={
+            <Box
+              sx={{
+                display: 'inline-flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                flexShrink: 0,
+                flexWrap: 'wrap',
+                gap: 1.5,
+                maxWidth: '100%',
               }}
             >
-              <ToggleButton value="hour" sx={{ px: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
-                {t('electricity.resolutionHour')}
-              </ToggleButton>
-              <ToggleButton
-                value="5minute"
-                disabled={!allowsFiveMinuteForRange(range)}
-                sx={{ px: 1, minWidth: 0, whiteSpace: 'nowrap' }}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                component="span"
+                sx={{ lineHeight: 1.2, whiteSpace: 'nowrap' }}
               >
-                {t('electricity.resolution5min')}
-              </ToggleButton>
-            </ToggleButtonGroup>
-            {!flowLoading && (
-              <PartialHistoryHint lagMs={statsCoverageLagMs} />
-            )}
-          </Box>
-        }
-      />
+                {t('electricity.resolution')}
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                value={effectiveResolution}
+                onChange={(_, v) => {
+                  if (v && allowsFiveMinuteForRange(range)) setResolution(v);
+                  else if (v) setResolution('hour');
+                }}
+              >
+                <ToggleButton value="hour" sx={{ px: 1, minWidth: 0, whiteSpace: 'nowrap' }}>
+                  {t('electricity.resolutionHour')}
+                </ToggleButton>
+                <ToggleButton
+                  value="5minute"
+                  disabled={!allowsFiveMinuteForRange(range)}
+                  sx={{ px: 1, minWidth: 0, whiteSpace: 'nowrap' }}
+                >
+                  {t('electricity.resolution5min')}
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+          }
+        />
+      </StickyDateToolbar>
 
       {stackedSeries.length === 0 ? (
         <Alert severity="info">{t('summary.noData')}</Alert>
@@ -311,15 +291,6 @@ export function Electricity() {
                       }
                     : null
                 }
-              />
-              <PowerFlowSankey
-                totals={sankey.totals}
-                devices={sankey.devices}
-                graphData={sankeyGraph}
-                locale={i18n.language}
-                title={t('electricity.sankeyTitle')}
-                emptyText={t('electricity.sankeyEmpty')}
-                headerAction={refetchAction}
               />
             </>
           )}

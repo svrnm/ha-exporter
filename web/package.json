@@ -1,7 +1,7 @@
 {
   "name": "ha-exporter-web",
   "version": "0.1.0",
-  "description": "React + MUI dashboard for the ha-exporter remote Energy view.",
+  "description": "Dahoamboard — React + MUI remote Energy view (data from the HA Exporter integration).",
   "private": true,
   "type": "module",
   "scripts": {

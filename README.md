@@ -2,8 +2,10 @@
 
 > **Warning:** This app is purely vibe-coded and provided as-is. Use it at your own risk.
 
-A Home Assistant custom integration that pushes your long-term energy
+A Home Assistant custom integration (**HA Exporter**) that pushes your long-term energy
 statistics and selected sensor state changes to a REST API you own.
+
+**Dahoamboard** is the companion server and web UI in `server/` and `web/` that stores and visualizes that data. The integration name in Home Assistant stays **HA Exporter**.
 
 Built to make it easy to keep a **remote copy of the Energy dashboard**
 (plus any extra sensors you want), by automatically discovering the entities
@@ -87,7 +89,12 @@ Content-Type: application/json
 User-Agent: ha_exporter/0.1 HomeAssistant/<version>
 ```
 
-The token is configured in the UI. Use HTTPS.
+The server uses two bearer secrets: a **read** token for the web UI
+(`HA_EXPORTER_READ_TOKEN`) and a **write** token for Home Assistant
+(`HA_EXPORTER_WRITE_TOKEN`, uploads and remote reset). Those env vars may hold
+**SHA-256 fingerprints** (`sha256$…`) instead of plaintext; clients still send
+the raw token in `Authorization`. Use `cd server && npm run generate-tokens`
+to create fingerprints and update `.env`. Use HTTPS.
 
 ## Install via HACS
 
@@ -96,14 +103,15 @@ The token is configured in the UI. Use HTTPS.
 3. Search for **HA Exporter** in HACS and install.
 4. Restart Home Assistant.
 5. Settings → Devices & Services → **Add integration** → **HA Exporter**.
-6. Enter your endpoint (e.g. `https://ingest.example.com`) and bearer token.
+6. Enter your endpoint (e.g. `https://ingest.example.com`) and the **write**
+   token (same value as `HA_EXPORTER_WRITE_TOKEN` on the server).
 
 ## Configuration options
 
 | Field | Default | Notes |
 |---|---|---|
 | Endpoint URL | — | Base URL; `/ingest` is appended. |
-| Bearer token | — | Stored in the config entry. |
+| Write token | — | Sent as `Authorization: Bearer …` on uploads; must match `HA_EXPORTER_WRITE_TOKEN` on the server. |
 | Push interval | 300 s | Minimum 30 s. |
 | Auto-export Energy dashboard entities | on | Both hourly (long-term) and 5-minute (short-term) statistics, plus state changes for any referenced power sensor so the live-flow view works. |
 | Extra entities | [] | Real-time state changes for these. |

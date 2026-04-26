@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useInstance } from '../layout/InstanceContext.jsx';
 import { useEnergyBundle } from '../api/hooks.js';
-import { RangePicker, RANGES, resolveRange } from '../components/RangePicker.jsx';
+import { RangePicker, RANGES, StickyDateToolbar, resolveRange } from '../components/RangePicker.jsx';
 import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
 import { StatCard } from '../components/StatCard.jsx';
 import { formatKwh } from '../format.js';
@@ -58,7 +58,9 @@ export function Gas() {
 
   return (
     <Stack spacing={{ xs: 2, sm: 2.5 }}>
-      <RangePicker value={range} onChange={setRange} ranges={RANGES} />
+      <StickyDateToolbar>
+        <RangePicker value={range} onChange={setRange} ranges={RANGES} />
+      </StickyDateToolbar>
 
       <Box
         sx={{

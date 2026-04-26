@@ -50,10 +50,13 @@ from .const import (
 )
 from .area_context import build_energy_area_context
 from .energy_discovery import EnergyDiscoveryResult, discover_energy
+from . import runtime_actions
 from .state_history_backfill import StateHistoryBackfill
 from .uploader import Uploader
 
 _LOGGER = logging.getLogger(__name__)
+
+PLATFORMS: tuple[str, ...] = ("sensor", "button")
 
 
 @dataclass
@@ -116,7 +119,7 @@ def _merged_conf(entry: ConfigEntry) -> dict[str, Any]:
 
 
 def _endpoints_from_conf(conf: dict[str, Any]) -> list[str]:
-    """Primary URL + optional second (e.g. dev) — same token and payload for both."""
+    """Primary URL + optional second (e.g. dev) — same write token and payload for both."""
     primary = str(conf[CONF_ENDPOINT]).rstrip("/")
     ordered: list[str] = [primary]
     raw = conf.get(CONF_SECONDARY_ENDPOINT)
@@ -222,6 +225,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             verify_ssl=verify_ssl,
             instance_id_provider=lambda: ha_uuid,
             energy_prefs_provider=lambda: data.energy_prefs(),  # noqa: F821
+            entry_id=entry.entry_id,
         ),
         # Placeholder collectors; real ones are wired below once we know
         # the tracked entity list. Using a dummy here keeps the dataclass
@@ -398,11 +402,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = data
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_services(hass)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+
     data: RuntimeData | None = hass.data.get(DOMAIN, {}).pop(
         entry.entry_id, None
     )
@@ -466,16 +474,6 @@ _RESET_REMOTE_SCHEMA = vol.Schema(
 )
 
 
-def _resolve_window_hours(
-    days: int | None, hours: int | None, default_hours: int = 24
-) -> int:
-    if days is not None and days > 0:
-        return days * 24
-    if hours is not None and hours > 0:
-        return hours
-    return default_hours
-
-
 @callback
 def _all_runtime(hass: HomeAssistant) -> list[RuntimeData]:
     return list(hass.data.get(DOMAIN, {}).values())
@@ -495,73 +493,24 @@ def _register_services(hass: HomeAssistant) -> None:
             )
             return
         for data in runtimes:
-            added = 0
-            try:
-                added = await data.stats_collector.async_collect()
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("%s: stats collect during push_now failed", DOMAIN)
-            s_before, st_before = data.buffer.size()
-            _LOGGER.info(
-                "%s: push_now: collected %d new statistic batches; "
-                "buffer now holds %d states + %d statistic batches",
-                DOMAIN,
-                added,
-                s_before,
-                st_before,
-            )
-            if data.buffer.is_empty():
-                # Still register instance + prefs on the server (e.g. after a wipe
-                # when stats have not been collected yet this tick).
-                await data.uploader.async_push()
-                _LOGGER.info(
-                    "%s: push_now: buffer was empty; sent prefs/heartbeat if available",
-                    DOMAIN,
-                )
-                continue
-            await data.uploader.async_push_until_empty(max_iters=200)
-            await data.uploader.async_push()
-            s_after, st_after = data.buffer.size()
-            _LOGGER.info(
-                "%s: push_now: done; remaining buffer %d states + %d statistic batches",
-                DOMAIN,
-                s_after,
-                st_after,
-            )
+            await runtime_actions.async_push_now(hass, data.entry.entry_id)
 
     async def _backfill(call: ServiceCall) -> None:
-        hours = _resolve_window_hours(
+        hours = runtime_actions.resolve_backfill_hours(
             call.data.get("days"), call.data.get("hours")
         )
         clear = bool(call.data.get("clear_cursors", False))
         for data in _all_runtime(hass):
-            if clear:
-                await data.stats_collector.async_clear_cursors()
-                if data.state_backfill is not None:
-                    await data.state_backfill.async_clear_cursors()
-                _LOGGER.info(
-                    "%s: backfill: cleared statistic and state-backfill cursors", DOMAIN
-                )
-            added = 0
-            try:
-                added = await data.stats_collector.async_collect(
-                    backfill_hours=hours
-                )
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception("%s: backfill collect failed", DOMAIN)
-            _LOGGER.info(
-                "%s: backfill(%dh): collected %d statistic batches",
-                DOMAIN,
-                hours,
-                added,
+            await runtime_actions.async_backfill(
+                hass,
+                data.entry.entry_id,
+                backfill_hours=hours,
+                clear_cursors=clear,
             )
-            await data.uploader.async_push_until_empty(max_iters=200)
-            await data.uploader.async_push()
 
     async def _reset_remote(call: ServiceCall) -> None:
         days = int(call.data.get("days", DEFAULT_INITIAL_BACKFILL_DAYS))
         full = bool(call.data.get("full", False))
-        # 0 = "no re-import" in older mind-set; for a one-step reset to "show
-        # data again" we always hydrate at least the default day window.
         effective_days = days if days > 0 else DEFAULT_INITIAL_BACKFILL_DAYS
         if days <= 0:
             _LOGGER.info(
@@ -570,55 +519,9 @@ def _register_services(hass: HomeAssistant) -> None:
                 effective_days,
             )
         for data in _all_runtime(hass):
-            try:
-                deleted = await data.uploader.async_delete_instance_data(full=full)
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "%s: reset_remote: server wipe failed; aborting", DOMAIN
-                )
-                continue
-            await data.stats_collector.async_clear_cursors()
-            if data.state_backfill is not None:
-                await data.state_backfill.async_clear_cursors()
-            _LOGGER.info(
-                "%s: reset_remote: cleared cursors; server reported %s",
-                DOMAIN,
-                deleted,
+            await runtime_actions.async_reset_remote(
+                hass, data.entry.entry_id, days=days, full=full
             )
-            try:
-                if (
-                    data.state_backfill is not None
-                    and data.include_energy
-                    and data.energy.power_entity_ids
-                ):
-                    await data.state_backfill.async_hydrate_from_recorder(
-                        data.buffer, data.energy.power_entity_ids
-                    )
-                added = await data.stats_collector.async_collect(
-                    backfill_hours=effective_days * 24
-                )
-            except Exception:  # noqa: BLE001
-                _LOGGER.exception(
-                    "%s: reset_remote: re-hydrate collect failed", DOMAIN
-                )
-                added = 0
-            _LOGGER.info(
-                "%s: reset_remote: re-hydrate %d days; %d statistic batches",
-                DOMAIN,
-                effective_days,
-                added,
-            )
-            await data.uploader.async_push_until_empty(max_iters=200)
-            for attempt in range(1, 4):
-                ok = await data.uploader.async_push()
-                if ok:
-                    break
-                _LOGGER.warning(
-                    "%s: reset_remote: push did not succeed (attempt %d/3), retrying",
-                    DOMAIN,
-                    attempt,
-                )
-                await asyncio.sleep(2.0)
 
     if not hass.services.has_service(DOMAIN, SERVICE_PUSH_NOW):
         hass.services.async_register(DOMAIN, SERVICE_PUSH_NOW, _push_now)

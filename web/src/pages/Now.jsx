@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Chip,
-  LinearProgress,
-  Paper,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, LinearProgress, Paper, Stack, Typography } from '@mui/material';
+import Battery5BarIcon from '@mui/icons-material/Battery5Bar';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
-import { useTheme } from '@mui/material/styles';
+import PowerOutlinedIcon from '@mui/icons-material/PowerOutlined';
+import SolarPowerIcon from '@mui/icons-material/SolarPower';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
 import { useInstance } from '../layout/InstanceContext.jsx';
@@ -19,37 +15,30 @@ import {
   useManyStatistics,
 } from '../api/hooks.js';
 import { PowerTimelineChart } from '../components/PowerTimelineChart.jsx';
-import { PowerFlowSankey } from '../components/PowerFlowSankey.jsx';
+import { DeviceKwhBarChart } from '../components/DeviceKwhBarChart.jsx';
 import {
   bucketPowerTimeline5Min,
   buildPowerTimelineFromEnergy,
-  buildWattsByStatMap,
   currentPowerWattsFromLatest,
   mergePowerTimeline,
   nowPageSankeyWithLiveWatts,
 } from '../api/powerTimeline.js';
 import { allStatIdsFromModel } from '../api/energyModel.js';
-import {
-  buildHierarchicalLiveWattsSankeyData,
-  buildHierarchicalSankeyData,
-} from '../api/energySankeyGraph.js';
 import { buildSankeyTotals } from '../api/sankeyTotals.js';
-import { formatHour, formatDateTimeShort } from '../format.js';
+import { formatHour, formatDateTimeShort, formatWatts } from '../format.js';
 
 /**
  * Live view modelled on Home Assistant's own Energy dashboard power page.
  *
  *   ┌──────────────── now: 273 W ────────────────┐
  *   ├───────── power over time (today) ──────────┤
- *   └── Sankey: where the energy went (today) ───┘
+ *   └── Per-device power (W) for leaf meters — same `stat_rate` as HA power
+ *       (falls back to empty when no live flow reading yet).
  *
  * The power chart uses state history of the four Energy `stat_rate` / flow
  * (kW) entities. The custom component preloads recorder history for those
  * same entities so the API matches HA. 5-minute energy statistics are only a
- * fallback when that history is not on the server yet. The “Current power
- * flow” Sankey shows W from the same `stat_rate` sensors (and per-device
- * `stat_rate` when set in the Energy dashboard); it falls back to today’s
- * kWh when no live system reading is available yet.
+ * fallback when that history is not on the server yet.
  *
  * State history is polled on a 10 s cadence; the day window advances on a
  * 30 s tick. The “current W” chip uses `/states/latest` at 15 s.
@@ -161,15 +150,24 @@ export function Now() {
     [model, latest.data?.byEntity],
   );
 
-  const headerHomeKw = useMemo(() => {
+  /** W for the home row: same source as the previous “big chip” (latest states, or last timeline point). */
+  const homeWDisplay = useMemo(() => {
     if (
       livePowerNow.hasPowerSensors &&
       livePowerNow.homeW != null &&
       Number.isFinite(livePowerNow.homeW)
     ) {
-      return livePowerNow.homeW / 1000;
+      return livePowerNow.homeW;
     }
-    return rows.length ? rows[rows.length - 1].consumption : 0;
+    const last = rows[rows.length - 1];
+    if (
+      last &&
+      last.consumption != null &&
+      Number.isFinite(last.consumption)
+    ) {
+      return last.consumption * 1000;
+    }
+    return null;
   }, [livePowerNow, rows]);
 
   // Build the Sankey totals. Prefer hourly statistics (most accurate, gives
@@ -181,55 +179,43 @@ export function Now() {
     [model, stats, rows],
   );
 
-  const sankeyGraph = useMemo(
-    () =>
-      model && sankey.totalByStat instanceof Map && sankey.totalByStat.size > 0
-        ? buildHierarchicalSankeyData(
-            model,
-            sankey.totalByStat,
-            sankey.totals,
-            {
-              t,
-              c: theme.palette.energy || {},
-              theme,
-              groupRestLabel: t('electricity.sankeyGroupRest'),
-              areaUnassignedLabel: t('electricity.sankeyAreaUnassigned'),
-              floorNoLevelLabel: t('electricity.sankeyFloorNoLevel'),
-            },
-          )
-        : { nodes: [], links: [] },
-    [model, sankey.totals, sankey.totalByStat, t, theme],
-  );
+  /** Match Electricity per-device chart: only leaf meters (not parents split into children). */
+  const deviceLeafStatSet = useMemo(() => {
+    const dash = model?.devices ?? [];
+    if (dash.length === 0) return new Set();
+    return new Set(
+      dash
+        .filter((d) => {
+          if (!d.stat) return false;
+          const isParent = dash.some((c) => c.includedInStat === d.stat);
+          return !isParent;
+        })
+        .map((d) => d.stat),
+    );
+  }, [model]);
 
-  const nowSankey = useMemo(() => {
+  const hasNestedDeviceMeters = useMemo(() => {
+    const list = model?.devices ?? [];
+    const ids = new Set(list.map((d) => d.stat).filter(Boolean));
+    return list.some((d) => d.includedInStat && ids.has(d.includedInStat));
+  }, [model]);
+
+  const liveDeviceWatts = useMemo(() => {
     const base = nowPageSankeyWithLiveWatts(
       model,
       latest.data?.byEntity,
       sankey,
-      sankeyGraph,
+      null,
     );
-    if (base.valueUnit !== 'watts' || !model?.devices?.length) {
-      return base;
+    if (base.valueUnit !== 'watts') {
+      return { devices: [] };
     }
-    const wattsByStat = buildWattsByStatMap(model, latest.data?.byEntity);
-    const graphH = buildHierarchicalLiveWattsSankeyData(
-      model,
-      wattsByStat,
-      base.totals,
-      {
-        t,
-        c: theme.palette.energy || {},
-        theme,
-        groupRestLabel: t('electricity.sankeyGroupRest'),
-        areaUnassignedLabel: t('electricity.sankeyAreaUnassigned'),
-        floorNoLevelLabel: t('electricity.sankeyFloorNoLevel'),
-      },
-    );
-    if (graphH?.links?.length) {
-      return { ...base, graphData: graphH, devices: [] };
-    }
-    return base;
-  }, [model, latest.data?.byEntity, sankey, sankeyGraph, t, theme]);
+    return {
+      devices: base.devices.filter(
+        (d) => d.stat && deviceLeafStatSet.has(d.stat),
+      ),
+    };
+  }, [model, latest.data?.byEntity, sankey, deviceLeafStatSet]);
 
   const c = theme.palette.energy || {};
 
@@ -275,8 +261,15 @@ export function Now() {
   return (
     <Stack spacing={2}>
       <HeaderRow
-        currentKw={headerHomeKw}
-        color={c.home ?? theme.palette.primary.main}
+        pe={model?.powerEntities}
+        homeW={homeWDisplay}
+        live={livePowerNow}
+        colors={{
+          home: c.home ?? theme.palette.primary.main,
+          solar: c.solar,
+          battery: c.battery,
+          grid: c.grid,
+        }}
         title={t('now.title')}
         subtitle={t('now.subtitle')}
         lastSeenLabel={
@@ -284,6 +277,8 @@ export function Now() {
             ? `${t('now.lastUpdated')}: ${formatDateTimeShort(lastSeen, lng)}`
             : null
         }
+        locale={lng}
+        t={t}
       />
 
       {hydrating && (
@@ -312,55 +307,193 @@ export function Now() {
         />
       )}
 
-      <PowerFlowSankey
-        totals={nowSankey.totals}
-        devices={nowSankey.devices}
-        graphData={nowSankey.graphData}
-        valueUnit={nowSankey.valueUnit}
-        locale={lng}
-      />
+      {model && (
+        <DeviceKwhBarChart
+          valueUnit="watt"
+          devices={liveDeviceWatts.devices}
+          title={t('now.devicesTitle')}
+          emptyText={t('now.devicesEmptyWatts')}
+          titleInfo={
+            hasNestedDeviceMeters
+              ? {
+                  text: t('electricity.deviceHierarchyHint'),
+                  ariaLabel: t('electricity.deviceHierarchyHintAria'),
+                }
+              : null
+          }
+        />
+      )}
     </Stack>
   );
 }
 
 // --------------------------------------------------------------------------- //
-// Header card — big current-W readout
+// Header: title + four live W widgets
 // --------------------------------------------------------------------------- //
 
-function HeaderRow({ currentKw, color, title, subtitle, lastSeenLabel }) {
-  const formatted = formatKw(currentKw);
+function HeaderRow({
+  pe,
+  homeW,
+  live,
+  colors,
+  title,
+  subtitle,
+  lastSeenLabel,
+  locale,
+  t,
+}) {
+  return (
+    <Paper sx={{ p: { xs: 2, sm: 2.5 } }}>
+      <Stack spacing={2}>
+        <Stack spacing={0.5}>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>
+            {title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {subtitle}
+            {lastSeenLabel ? ` — ${lastSeenLabel}` : null}
+          </Typography>
+        </Stack>
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 1.5,
+            gridTemplateColumns: {
+              xs: 'repeat(2, minmax(0, 1fr))',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              md: 'repeat(4, minmax(0, 1fr))',
+            },
+          }}
+        >
+          <LiveWWidget
+            label={t('summary.powerNowHome')}
+            valueText={
+              homeW != null && Number.isFinite(homeW)
+                ? formatWattLabel(homeW, locale)
+                : '—'
+            }
+            sublabel={null}
+            icon={<HomeOutlinedIcon sx={{ fontSize: 24 }} />}
+            color={colors.home}
+          />
+          {pe?.solar ? (
+            <LiveWWidget
+              label={t('summary.powerNowSolar')}
+              valueText={
+                live.solarW != null && Number.isFinite(live.solarW)
+                  ? formatWattLabel(live.solarW, locale)
+                  : '—'
+              }
+              sublabel={null}
+              icon={<SolarPowerIcon sx={{ fontSize: 24 }} />}
+              color={colors.solar}
+            />
+          ) : null}
+          {pe?.batteryIn || pe?.batteryOut ? (
+            <LiveWWidget
+              label={t('summary.powerNowBattery')}
+              valueText={batteryWattMainText(live.batteryNetW, locale)}
+              sublabel={batterySublabel(live.batteryNetW, t)}
+              icon={<Battery5BarIcon sx={{ fontSize: 24 }} />}
+              color={colors.battery}
+            />
+          ) : null}
+          {pe?.grid ? (
+            <LiveWWidget
+              label={t('summary.powerNowGrid')}
+              valueText={gridWattMainText(live.gridNetW, locale)}
+              sublabel={gridSublabel(live.gridNetW, t)}
+              icon={<PowerOutlinedIcon sx={{ fontSize: 24 }} />}
+              color={colors.grid}
+            />
+          ) : null}
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
+function formatWattLabel(w, locale) {
+  const n = formatWatts(w, locale);
+  return `${n} W`;
+}
+
+function gridWattMainText(gridNetW, locale) {
+  if (gridNetW == null || !Number.isFinite(gridNetW)) return '—';
+  const a = Math.abs(gridNetW);
+  return formatWattLabel(a, locale);
+}
+
+function gridSublabel(gridNetW, t) {
+  if (gridNetW == null || !Number.isFinite(gridNetW)) return null;
+  if (gridNetW > 0) return t('summary.powerNowGridImport');
+  if (gridNetW < 0) return t('summary.powerNowGridExport');
+  return t('summary.powerNowGrid');
+}
+
+function batteryWattMainText(batteryNetW, locale) {
+  if (batteryNetW == null || !Number.isFinite(batteryNetW)) return '—';
+  return formatWattLabel(Math.abs(batteryNetW), locale);
+}
+
+function batterySublabel(batteryNetW, t) {
+  if (batteryNetW == null || !Number.isFinite(batteryNetW)) return null;
+  if (batteryNetW < 0) return t('summary.powerNowBatteryCharging');
+  if (batteryNetW > 0) return t('summary.powerNowBatteryDischarging');
+  return t('summary.powerNowBattery');
+}
+
+function LiveWWidget({ label, valueText, sublabel, icon, color }) {
   return (
     <Paper
+      variant="outlined"
       sx={{
-        p: { xs: 2, sm: 2.5 },
+        p: 1.5,
         display: 'flex',
-        alignItems: 'center',
-        gap: 2,
-        flexWrap: 'wrap',
+        gap: 1.25,
+        minWidth: 0,
+        borderColor: 'divider',
+        bgcolor: alpha(color, 0.06),
+        alignItems: 'flex-start',
       }}
     >
-      <Stack sx={{ flex: 1, minWidth: 200 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>
-          {title}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {subtitle}
-          {lastSeenLabel ? ` — ${lastSeenLabel}` : null}
-        </Typography>
-      </Stack>
-      <Chip
-        icon={<HomeOutlinedIcon sx={{ color: `${color} !important` }} />}
-        label={formatted}
+      <Box
         sx={{
-          height: 44,
-          fontSize: 18,
-          fontWeight: 700,
-          px: 1.5,
-          bgcolor: `${color}22`,
+          width: 40,
+          height: 40,
+          borderRadius: 1.25,
+          display: 'grid',
+          placeItems: 'center',
+          flexShrink: 0,
           color,
-          '.MuiChip-label': { px: 1.5 },
+          bgcolor: alpha(color, 0.18),
         }}
-      />
+      >
+        {icon}
+      </Box>
+      <Stack spacing={0.25} sx={{ minWidth: 0, flex: 1 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          display="block"
+          sx={{ lineHeight: 1.2 }}
+        >
+          {label}
+        </Typography>
+        <Typography
+          component="p"
+          variant="h6"
+          sx={{ fontWeight: 700, lineHeight: 1.2, m: 0, wordBreak: 'break-all' }}
+          className="num"
+        >
+          {valueText}
+        </Typography>
+        {sublabel ? (
+          <Typography variant="caption" color="text.secondary" display="block">
+            {sublabel}
+          </Typography>
+        ) : null}
+      </Stack>
     </Paper>
   );
 }
@@ -377,12 +510,6 @@ function todayRange() {
   return [start.toISOString(), end.toISOString()];
 }
 
-function formatKw(kw) {
-  const v = Number.isFinite(kw) ? kw : 0;
-  if (Math.abs(v) < 1) return `${Math.round(v * 1000)} W`;
-  return `${v.toFixed(Math.abs(v) < 10 ? 2 : 1)} kW`;
-}
-
 function pickLatestRow(rows, entityIds) {
   if (!Array.isArray(rows)) return null;
   const set = new Set(entityIds);
@@ -395,4 +522,3 @@ function pickLatestRow(rows, entityIds) {
   }
   return latest;
 }
-

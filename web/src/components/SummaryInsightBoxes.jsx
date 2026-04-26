@@ -1,38 +1,18 @@
-import { useState } from 'react';
-import DateRangeOutlinedIcon from '@mui/icons-material/DateRangeOutlined';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import ParkOutlinedIcon from '@mui/icons-material/ParkOutlined';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import EnergySavingsLeafOutlinedIcon from '@mui/icons-material/EnergySavingsLeafOutlined';
-import {
-  Box,
-  IconButton,
-  Paper,
-  Popover,
-  Skeleton,
-  Stack,
-  Tooltip,
-  Typography,
-} from '@mui/material';
+import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 import { formatCurrency, formatNumber } from '../format.js';
+import { HeroStat } from './SummaryHeroWidgets.jsx';
 
 /**
- * @param {{
- *   metricsSelection: import('../api/summaryMetrics.js').SummaryMetricsSlice | null,
- *   selectionLabel: string,
- *   currency: string,
- *   loading?: boolean,
- * }} props
+ * Same {@link HeroStat} presentation as the all-time row: number in the value
+ * line, long descriptive tagline (units / € in the caption, not inline).
  */
-export function SummaryInsightBoxes({
-  metricsSelection,
-  selectionLabel,
-  currency,
-  loading,
-}) {
+export function SummaryInsightBoxes({ metricsSelection, currency, loading }) {
   const { t, i18n } = useTranslation();
   const theme = useTheme();
   const lng = i18n.language;
@@ -40,184 +20,81 @@ export function SummaryInsightBoxes({
 
   const fmtMoney = (v) =>
     v != null && Number.isFinite(v) ? formatCurrency(v, lng, currency) : '—';
+  const fmtMoneyValue = (v) =>
+    v != null && Number.isFinite(v)
+      ? formatNumber(v, lng, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '—';
   const fmtKg = (v) =>
     v != null && Number.isFinite(v)
       ? `${formatNumber(v, lng, { maximumFractionDigits: 2 })} ${t('units.kgCo2')}`
+      : '—';
+  const fmtKgValue = (v) =>
+    v != null && Number.isFinite(v)
+      ? formatNumber(v, lng, { maximumFractionDigits: 2 })
       : '—';
   const fmtTrees = (v) =>
     v != null && Number.isFinite(v)
       ? `${formatNumber(v, lng, { maximumFractionDigits: 1 })} ${t('units.treeYears')}`
       : '—';
+  const fmtTreesCount = (v) =>
+    v != null && Number.isFinite(v) ? formatNumber(v, lng, { maximumFractionDigits: 1 }) : '—';
 
-  const cards = [
-    {
-      key: 'cost',
-      title: t('summary.insightTotalCost'),
-      icon: <PaidOutlinedIcon sx={{ fontSize: 22 }} />,
-      accent: c.grid ?? theme.palette.primary.main,
-      value: fmtMoney(metricsSelection?.footerCost),
-      valueColor: 'text.primary',
-      info: null,
-    },
-    {
-      key: 'savings',
-      title: t('summary.insightTotalSavings'),
-      icon: <SavingsOutlinedIcon sx={{ fontSize: 22 }} />,
-      accent: c.solar ?? theme.palette.success.main,
-      value: fmtMoney(metricsSelection?.footerSavings),
-      valueColor: 'success.main',
-      info: null,
-    },
-    {
-      key: 'co2',
-      title: t('summary.insightCo2Saved'),
-      icon: <EnergySavingsLeafOutlinedIcon sx={{ fontSize: 22 }} />,
-      accent: c.co2Neutral ?? theme.palette.success.light,
-      value: fmtKg(metricsSelection?.co2AvoidedKg),
-      valueColor: 'text.primary',
-      info: t('summary.insightCo2Footnote'),
-    },
-    {
-      key: 'trees',
-      title: t('summary.insightTrees'),
-      icon: <ParkOutlinedIcon sx={{ fontSize: 22 }} />,
-      accent: c.home ?? theme.palette.secondary.main,
-      value: fmtTrees(metricsSelection?.treesEquivalent),
-      valueColor: 'text.primary',
-      info: t('summary.insightTreesFootnote'),
-    },
-  ];
+  const scopeRange = t('summary.sectionRangeTitle');
+  const tip = (longLabel) => `${longLabel} · ${scopeRange}`;
 
   return (
     <Box
       sx={{
         display: 'grid',
-        gap: { xs: 2, sm: 2.5 },
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
+        gap: { xs: 1, sm: 1.15, md: 1.25 },
+        gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, minmax(0, 1fr))' },
       }}
     >
-      {cards.map((card) => (
-        <InsightCard
-          key={card.key}
-          card={card}
-          loading={loading}
-          selectionLabel={selectionLabel}
-          t={t}
-        />
-      ))}
+      <HeroStat
+        tagline={t('summary.insightTotalCost')}
+        tooltip={tip(t('summary.insightTotalCost'))}
+        icon={<PaidOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
+        loading={loading}
+        value={fmtMoneyValue(metricsSelection?.footerCost)}
+        valueAriaLabel={fmtMoney(metricsSelection?.footerCost)}
+        accent={c.grid ?? theme.palette.primary.main}
+      />
+      <HeroStat
+        tagline={t('summary.heroStatSavingsTagline')}
+        tooltip={tip(t('summary.insightTotalSavings'))}
+        icon={<SavingsOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
+        loading={loading}
+        value={fmtMoneyValue(metricsSelection?.footerSavings)}
+        valueAriaLabel={fmtMoney(metricsSelection?.footerSavings)}
+        accent={c.solar ?? theme.palette.success.main}
+        valueColor="success.main"
+      />
+      <HeroStat
+        tagline={t('summary.heroStatCo2Tagline')}
+        tooltip={tip(t('summary.insightCo2Saved'))}
+        icon={<EnergySavingsLeafOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
+        loading={loading}
+        value={fmtKgValue(metricsSelection?.co2AvoidedKg)}
+        valueAriaLabel={
+          metricsSelection?.co2AvoidedKg != null && Number.isFinite(metricsSelection.co2AvoidedKg)
+            ? fmtKg(metricsSelection.co2AvoidedKg)
+            : undefined
+        }
+        accent={c.co2Neutral ?? theme.palette.success.light}
+      />
+      <HeroStat
+        tagline={t('summary.heroStatTreesTagline')}
+        tooltip={tip(t('summary.insightTrees'))}
+        icon={<ParkOutlinedIcon sx={{ fontSize: 20 }} />}
+        compact
+        loading={loading}
+        value={fmtTreesCount(metricsSelection?.treesEquivalent)}
+        valueAriaLabel={fmtTrees(metricsSelection?.treesEquivalent)}
+        accent={c.home ?? theme.palette.secondary.main}
+      />
     </Box>
-  );
-}
-
-function InsightFootnote({ body, ariaLabel }) {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
-  if (!body) return null;
-  return (
-    <>
-      <IconButton
-        size="small"
-        onClick={(e) => setAnchorEl(e.currentTarget)}
-        aria-label={ariaLabel}
-        aria-expanded={open}
-        aria-haspopup="true"
-        sx={{
-          ml: 0.25,
-          color: 'text.secondary',
-          '&:hover': { color: 'primary.main', bgcolor: 'action.selected' },
-        }}
-      >
-        <InfoOutlinedIcon sx={{ fontSize: 18 }} />
-      </IconButton>
-      <Popover
-        open={open}
-        anchorEl={anchorEl}
-        onClose={() => setAnchorEl(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        slotProps={{
-          paper: {
-            sx: {
-              maxWidth: 360,
-              p: 2,
-              borderRadius: 2,
-              border: 1,
-              borderColor: 'divider',
-            },
-          },
-        }}
-      >
-        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-          {body}
-        </Typography>
-      </Popover>
-    </>
-  );
-}
-
-function InsightCard({ card, loading, selectionLabel, t }) {
-  return (
-    <Paper sx={{ p: { xs: 2, sm: 2.5 }, height: '100%' }}>
-      <Stack spacing={1.25}>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-          <Tooltip title={card.title}>
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: 1.5,
-                display: 'grid',
-                placeItems: 'center',
-                bgcolor: card.accent ? `${card.accent}22` : 'action.hover',
-                color: card.accent || 'text.primary',
-                flexShrink: 0,
-              }}
-            >
-              {card.icon}
-            </Box>
-          </Tooltip>
-          <Box sx={{ flex: 1 }} />
-          {card.info ? (
-            <InsightFootnote body={card.info} ariaLabel={t('summary.insightMethodAria')} />
-          ) : (
-            <Box sx={{ width: 34, height: 34, flexShrink: 0 }} />
-          )}
-        </Stack>
-
-        {loading ? (
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ pt: 0.25 }}>
-            <Skeleton variant="circular" width={22} height={22} />
-            <Skeleton variant="text" sx={{ flex: 1 }} height={36} />
-          </Stack>
-        ) : (
-          <Stack direction="row" alignItems="baseline" spacing={1} sx={{ minWidth: 0, pt: 0.25 }}>
-            <Tooltip title={selectionLabel}>
-              <IconButton
-                size="small"
-                aria-label={selectionLabel}
-                sx={{ p: 0.35, color: 'text.disabled', flexShrink: 0, mt: -0.25 }}
-              >
-                <DateRangeOutlinedIcon sx={{ fontSize: 20 }} />
-              </IconButton>
-            </Tooltip>
-            <Typography
-              variant="h5"
-              className="num"
-              sx={{
-                fontWeight: 700,
-                lineHeight: 1.15,
-                fontFeatureSettings: '"tnum"',
-                color: card.valueColor,
-                wordBreak: 'break-word',
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
-              {card.value}
-            </Typography>
-          </Stack>
-        )}
-      </Stack>
-    </Paper>
   );
 }
