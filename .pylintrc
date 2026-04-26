@@ -1,0 +1,25 @@
+# Pylint for custom_components/ha_exporter (Home Assistant integration).
+# The pre-commit venv does not install homeassistant, voluptuous, or aiohttp.
+# Relaxed checks match typical HA integration layout (optional imports, size).
+
+[MAIN]
+py-version = 3.12
+
+[MESSAGES CONTROL]
+disable =
+    import-error,
+    import-outside-toplevel,
+    duplicate-code,
+    too-many-branches,
+    too-many-locals,
+    too-many-statements,
+    too-many-nested-blocks,
+    too-many-instance-attributes,
+    too-many-arguments,
+    too-few-public-methods,
+    missing-class-docstring,
+    missing-function-docstring,
+    unnecessary-lambda,
+    unused-argument,
+    unused-import,
+    broad-exception-caught,
