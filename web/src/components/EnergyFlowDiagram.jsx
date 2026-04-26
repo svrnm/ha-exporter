@@ -7,7 +7,8 @@ import { formatKwh, formatWatts } from '../format.js';
 /**
  * Energy distribution diagram modelled on Home Assistant's Energy dashboard.
  *
- * Layout (800 × 688 viewBox):
+ * Layout (800 × 688 viewBox; on small screens a tighter horizontal viewBox
+ * zooms the graph to match HA’s edge-to-edge use of the card):
  *
  *   CO₂-neutral      PV         Gas
  *                  / | \         |
@@ -39,12 +40,18 @@ import { formatKwh, formatWatts } from '../format.js';
  * so two nearby labels (e.g. net→home vs solar→battery) are not on the same
  * centre. Dots / animation still use the true midpoint of the path.
  */
+/** Native HA fits nodes closer to the card edge; a tight viewBox ≈-zooms the fixed 800×688 layout. */
+const VIEWBOX_COMPACT = '68 0 674 688';
+const VIEWBOX_DEFAULT = '0 0 800 688';
+
 export function EnergyFlowDiagram({
   values = {},
   liveFlowW = null,
   batteryChargeFraction = null,
 }) {
   const theme = useTheme();
+  const isCompact = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
+  const viewBox = isCompact ? VIEWBOX_COMPACT : VIEWBOX_DEFAULT;
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)', {
     noSsr: true,
     defaultMatches: false,
@@ -200,13 +207,22 @@ export function EnergyFlowDiagram({
     : null;
 
   return (
-    <Paper sx={{ p: { xs: 2, sm: 2.5 } }}>
-      <Stack spacing={1.5}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+    <Paper
+      sx={{
+        p: { xs: 0.75, sm: 2.5 },
+        px: { xs: 0.5, sm: 2.5 },
+      }}
+    >
+      <Stack spacing={{ xs: 0.5, sm: 1.5 }}>
+        <Typography
+          variant="subtitle1"
+          component="h2"
+          sx={{ fontWeight: 700, px: { xs: 0.5, sm: 0 } }}
+        >
           {t('summary.distribution')}
         </Typography>
         <svg
-          viewBox="0 0 800 688"
+          viewBox={viewBox}
           role="img"
           aria-label={t('summary.distribution')}
           style={{ width: '100%', height: 'auto', display: 'block' }}
@@ -224,6 +240,7 @@ export function EnergyFlowDiagram({
               theme={theme}
               wUnit={t('units.w')}
               language={lng}
+              isCompact={isCompact}
             />
           ))}
 
@@ -232,29 +249,32 @@ export function EnergyFlowDiagram({
             <SingleNode
               pos={POS.co2}
               color={c.co2Neutral}
-              icon={<LeafIcon color={c.co2Neutral} />}
+              icon={<LeafIcon color={c.co2Neutral} size={isCompact ? 32 : 28} />}
               label={t('summary.flow.co2Free')}
               primary={`${fmt(co2Free)} ${unit}`}
               theme={theme}
+              isCompact={isCompact}
               labelAbove
             />
           )}
           <SingleNode
             pos={POS.pv}
             color={c.solar}
-            icon={<SolarIcon color={c.solar} />}
+            icon={<SolarIcon color={c.solar} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.pv')}
             primary={`${fmt(solar)} ${unit}`}
             theme={theme}
+            isCompact={isCompact}
             labelAbove
           />
           <SingleNode
             pos={POS.gas}
             color={c.gas}
-            icon={<GasIcon color={c.gas} />}
+            icon={<GasIcon color={c.gas} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.gas')}
             primary={`${fmt(gas)} ${t('units.m3')}`}
             theme={theme}
+            isCompact={isCompact}
             labelAbove
           />
 
@@ -262,7 +282,7 @@ export function EnergyFlowDiagram({
           <DualArrowNode
             pos={POS.grid}
             color={c.grid}
-            icon={<GridIcon color={c.grid} />}
+            icon={<GridIcon color={c.grid} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.grid')}
             lines={[
               { arrow: '←', value: gridIn, color: c.grid },
@@ -271,22 +291,24 @@ export function EnergyFlowDiagram({
             unit={unit}
             fmt={fmt}
             theme={theme}
+            isCompact={isCompact}
           />
           <RingNode
             pos={POS.home}
             color={c.home}
-            icon={<HomeIcon color={c.home} />}
+            icon={<HomeIcon color={c.home} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.home')}
             primary={`${fmt(homeTotal)} ${unit}`}
             segments={ringSegments}
             theme={theme}
+            isCompact={isCompact}
           />
 
           {/* Bottom row */}
           <BatterySegmentedNode
             pos={POS.battery}
             color={c.battery}
-            icon={<BatteryIcon color={c.battery} />}
+            icon={<BatteryIcon color={c.battery} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.battery')}
             lines={[
               { arrow: '↓', value: batteryIn, color: c.battery },
@@ -295,6 +317,7 @@ export function EnergyFlowDiagram({
             unit={unit}
             fmt={fmt}
             theme={theme}
+            isCompact={isCompact}
             chargeFraction={batteryChargeFraction}
             socLabel={
               batteryChargeFraction != null && Number.isFinite(batteryChargeFraction)
@@ -313,6 +336,46 @@ export function EnergyFlowDiagram({
 // --------------------------------------------------------------------------- //
 // Internals
 // --------------------------------------------------------------------------- //
+
+/**
+ * Shrink a font size so numeric labels do not run into the ring stroke. Uses
+ * chord width at `y` inside a disc of effective radius (pos.r - innerMargin).
+ */
+function fitTextStackToCircle(
+  pos,
+  innerMargin,
+  lineSpecs,
+  baseSize,
+  minSize,
+  /** Slightly wider than 0.5 to match real “700” digit width + locale separators. */
+  options = {},
+) {
+  const { charW = 0.57, edgePad = 2.5 } = options;
+  const r = pos.r - innerMargin;
+  if (r <= 0) return minSize;
+  const pad = edgePad;
+  const fits = (s) => {
+    for (const { text, yFromCenter } of lineSpecs) {
+      if (!text) continue;
+      const y = Math.abs(yFromCenter);
+      if (y >= r - pad) return false;
+      const halfW = Math.sqrt(r * r - y * y) - pad;
+      if (text.length * s * charW > 2 * halfW) return false;
+    }
+    return true;
+  };
+  if (fits(baseSize)) {
+    return Math.max(minSize, Math.round(baseSize * 10) / 10);
+  }
+  let lo = minSize;
+  let hi = baseSize;
+  for (let i = 0; i < 14; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  return Math.max(minSize, Math.round(lo * 10) / 10);
+}
 
 function nn(v) {
   if (v == null) return 0;
@@ -340,6 +403,7 @@ function FlowLine({
   theme,
   wUnit,
   language,
+  isCompact = false,
 }) {
   const { from, to, color, value = 0, via, noDots = false, watts: edgeW } = edge;
   const hasFlowKwh = value > 0;
@@ -355,7 +419,10 @@ function FlowLine({
   if (noDots && hasFlowKwh) {
     strokeOpacity = Math.min(0.58, idleOpacity + 0.12 + kwhRatio * 0.1);
   }
-  const strokeWidth = 1.75;
+  const strokeWidth = isCompact ? 2.1 : 1.75;
+  const wFontPx = isCompact ? 13.5 : 11;
+  const wLabelStrokeW = isCompact ? 6.2 : 5.5;
+  const dotR = isCompact ? 3.6 : 3.2;
 
   // Offset endpoints to the circle borders (+ a 2px gap) so lines visibly
   // land on the rim instead of disappearing into the centre of each node.
@@ -393,10 +460,10 @@ function FlowLine({
         fill="none"
       />
       {showDots && dotCount > 0 && reduceMotion && (
-        <circle cx={geo.mx} cy={geo.my} r={3.2} fill={color} opacity={0.88} />
+        <circle cx={geo.mx} cy={geo.my} r={dotR} fill={color} opacity={0.88} />
       )}
       {showDots && dotCount > 0 && !reduceMotion && (
-        <circle r={3.2} fill={color} opacity={0.9}>
+        <circle r={dotR} fill={color} opacity={0.9}>
           <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto">
             <mpath href={`#${pathId}`} />
           </animateMotion>
@@ -410,11 +477,11 @@ function FlowLine({
           dominantBaseline="middle"
           fill={color}
           stroke={labelHalo}
-          strokeWidth={5.5}
+          strokeWidth={wLabelStrokeW}
           strokeLinejoin="round"
           paintOrder="stroke fill"
           style={{
-            font: '600 11px Inter, system-ui, sans-serif',
+            font: `600 ${wFontPx}px Inter, system-ui, sans-serif`,
             fontFeatureSettings: '"tnum"',
           }}
         >
@@ -520,36 +587,70 @@ function NodeCircle({ pos, color }) {
   );
 }
 
-function NodeLabel({ pos, text, color, placement = 'below' }) {
+function NodeLabel({ pos, text, color, placement = 'below', isCompact = false }) {
+  const fs = isCompact ? 15.5 : 13;
+  // “Above” baseline must clear the top stroke; subscripts (CO₂) and cap height
+  // can otherwise sit on the ring, especially on small (r=52) nodes in compact.
+  const aboveLift = (isCompact ? 10 : 4) + (pos.r <= 54 ? 4 : 0);
   const y =
     placement === 'above'
-      ? pos.cy - pos.r - 6
-      : pos.cy + pos.r + 22;
+      ? pos.cy - pos.r - 6 - aboveLift
+      : pos.cy + pos.r + (isCompact ? 24 : 22);
   return (
     <text
       x={pos.cx}
       y={y}
       textAnchor="middle"
       fill={color}
-      style={{ font: '500 13px Inter, sans-serif' }}
+      style={{ font: `500 ${fs}px Inter, sans-serif` }}
     >
       {text}
     </text>
   );
 }
 
-function SingleNode({ pos, color, icon, label, primary, theme, labelAbove }) {
+const ICON_NUDGE = { default: 16, compact: 18 };
+const ICON_NUDGE_GRID = { default: 26, compact: 30 };
+
+const INSET_THIN_STROKE = 2.5;
+const INSET_THICK_RING = 3.8;
+
+function SingleNode({ pos, color, icon, label, primary, theme, labelAbove, isCompact = false }) {
+  const pfs0 = isCompact ? 20 : 18;
+  // Smaller top-row nodes (CO₂, gas) have a slimmer horizontal chord; sit the
+  // kWh line slightly higher in compact to stay inside the stroke.
+  const small = pos.r <= 54;
+  const yOff =
+    isCompact && small
+      ? 21
+      : isCompact
+        ? 24
+        : small
+          ? 20
+          : 22;
+  const pfs = fitTextStackToCircle(
+    pos,
+    INSET_THIN_STROKE + (small ? 1.4 : 0),
+    [{ text: String(primary), yFromCenter: yOff }],
+    pfs0,
+    small && isCompact ? 8.5 : 10,
+    {
+      charW: small ? 0.6 : 0.57,
+      edgePad: small && isCompact ? 3.5 : 2.5,
+    },
+  );
+  const inudge = isCompact ? ICON_NUDGE.compact : ICON_NUDGE.default;
   return (
     <g>
       <NodeCircle pos={pos} color={color} />
-      <g transform={`translate(${pos.cx}, ${pos.cy - 16})`}>{icon}</g>
+      <g transform={`translate(${pos.cx}, ${pos.cy - inudge})`}>{icon}</g>
       <text
         x={pos.cx}
-        y={pos.cy + 22}
+        y={pos.cy + yOff}
         textAnchor="middle"
         fill={theme.palette.text.primary}
         style={{
-          font: '700 18px Inter, sans-serif',
+          font: `700 ${pfs}px Inter, sans-serif`,
           fontFeatureSettings: '"tnum"',
         }}
       >
@@ -559,26 +660,41 @@ function SingleNode({ pos, color, icon, label, primary, theme, labelAbove }) {
         pos={pos}
         text={label}
         color={theme.palette.text.secondary}
+        isCompact={isCompact}
         placement={labelAbove ? 'above' : 'below'}
       />
     </g>
   );
 }
 
-function DualArrowNode({ pos, color, icon, label, lines, unit, fmt, theme }) {
+function DualArrowNode({ pos, color, icon, label, lines, unit, fmt, theme, isCompact = false }) {
+  const fs0 = isCompact ? 16.5 : 15;
+  const lineStep = isCompact ? 25 : 22;
+  const lineSpecs = lines.map((l, i) => ({
+    text: `${l.arrow} ${fmt(l.value)} ${unit}`,
+    yFromCenter: 6 + i * lineStep,
+  }));
+  const fs = fitTextStackToCircle(
+    pos,
+    INSET_THIN_STROKE,
+    lineSpecs,
+    fs0,
+    9.5,
+  );
+  const inudge = isCompact ? ICON_NUDGE_GRID.compact : ICON_NUDGE_GRID.default;
   return (
     <g>
       <NodeCircle pos={pos} color={color} />
-      <g transform={`translate(${pos.cx}, ${pos.cy - 26})`}>{icon}</g>
+      <g transform={`translate(${pos.cx}, ${pos.cy - inudge})`}>{icon}</g>
       {lines.map((l, i) => (
         <text
           key={i}
           x={pos.cx}
-          y={pos.cy + 6 + i * 22}
+          y={pos.cy + 6 + i * lineStep}
           textAnchor="middle"
           fill={theme.palette.text.primary}
           style={{
-            font: '600 15px Inter, sans-serif',
+            font: `600 ${fs}px Inter, sans-serif`,
             fontFeatureSettings: '"tnum"',
           }}
         >
@@ -588,7 +704,7 @@ function DualArrowNode({ pos, color, icon, label, lines, unit, fmt, theme }) {
           <tspan>{`${fmt(l.value)} ${unit}`}</tspan>
         </text>
       ))}
-      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} />
+      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} isCompact={isCompact} />
     </g>
   );
 }
@@ -635,6 +751,7 @@ function BatterySegmentedNode({
   unit,
   fmt,
   theme,
+  isCompact = false,
   chargeFraction,
   socLabel,
 }) {
@@ -651,6 +768,20 @@ function BatterySegmentedNode({
     socLabel != null
       ? `${label}: ${socLabel}`
       : `${label}: ${fmt(lines[0]?.value ?? 0)} ${unit} ${lines[0]?.arrow ?? ''}, ${fmt(lines[1]?.value ?? 0)} ${unit} ${lines[1]?.arrow ?? ''}`;
+
+  const rowH = isCompact ? 22 : 20;
+  const bfs0 = isCompact ? 16 : 14;
+  const bspec = lines.map((l2, j) => ({
+    text: `${l2.arrow} ${fmt(l2.value)} ${unit}`,
+    yFromCenter: 4 + j * rowH,
+  }));
+  const bfs = fitTextStackToCircle(
+    pos,
+    INSET_THICK_RING,
+    bspec,
+    bfs0,
+    8.5,
+  );
 
   return (
     <g aria-label={aria}>
@@ -675,16 +806,22 @@ function BatterySegmentedNode({
           strokeLinecap="butt"
         />
       ))}
-      <g transform={`translate(${pos.cx}, ${pos.cy - 28})`}>{icon}</g>
+      <g
+        transform={`translate(${pos.cx}, ${
+          pos.cy - (isCompact ? 32 : 28)
+        })`}
+      >
+        {icon}
+      </g>
       {lines.map((l, i) => (
         <text
           key={i}
           x={pos.cx}
-          y={pos.cy + 4 + i * 20}
+          y={pos.cy + 4 + i * rowH}
           textAnchor="middle"
           fill={theme.palette.text.primary}
           style={{
-            font: '600 14px Inter, sans-serif',
+            font: `600 ${bfs}px Inter, sans-serif`,
             fontFeatureSettings: '"tnum"',
           }}
         >
@@ -694,14 +831,23 @@ function BatterySegmentedNode({
           <tspan>{`${fmt(l.value)} ${unit}`}</tspan>
         </text>
       ))}
-      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} />
+      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} isCompact={isCompact} />
     </g>
   );
 }
 
-function RingNode({ pos, color, icon, label, primary, segments, theme }) {
+function RingNode({ pos, color, icon, label, primary, segments, theme, isCompact = false }) {
   const ringRadius = pos.r;
   const ringWidth = 5;
+  const yOff = isCompact ? 25 : 22;
+  const hfs0 = isCompact ? 25 : 22;
+  const hfs = fitTextStackToCircle(
+    pos,
+    INSET_THICK_RING,
+    [{ text: String(primary), yFromCenter: yOff }],
+    hfs0,
+    12,
+  );
 
   // SVG arc segments around the node to show consumption breakdown.
   const arcs = [];
@@ -741,20 +887,26 @@ function RingNode({ pos, color, icon, label, primary, segments, theme }) {
         />
       ))}
 
-      <g transform={`translate(${pos.cx}, ${pos.cy - 16})`}>{icon}</g>
+      <g
+        transform={`translate(${pos.cx}, ${
+          pos.cy - (isCompact ? 19 : 16)
+        })`}
+      >
+        {icon}
+      </g>
       <text
         x={pos.cx}
-        y={pos.cy + 22}
+        y={pos.cy + yOff}
         textAnchor="middle"
         fill={theme.palette.text.primary}
         style={{
-          font: '700 22px Inter, sans-serif',
+          font: `700 ${hfs}px Inter, sans-serif`,
           fontFeatureSettings: '"tnum"',
         }}
       >
         {primary}
       </text>
-      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} />
+      <NodeLabel pos={pos} text={label} color={theme.palette.text.secondary} isCompact={isCompact} />
     </g>
   );
 }
@@ -789,13 +941,14 @@ function polarToCartesian(cx, cy, r, angleDeg) {
 // @mui/icons inside the SVG tree.
 // --------------------------------------------------------------------------- //
 
-function iconProps(color) {
+function iconProps(color, size = 28) {
+  const o = size / 2;
   return {
-    width: 28,
-    height: 28,
+    width: size,
+    height: size,
     viewBox: '0 0 24 24',
-    x: -14,
-    y: -14,
+    x: -o,
+    y: -o,
     fill: 'none',
     stroke: color,
     strokeWidth: 1.8,
@@ -804,9 +957,9 @@ function iconProps(color) {
   };
 }
 
-function LeafIcon({ color }) {
+function LeafIcon({ color, size = 28 }) {
   return (
-    <svg {...iconProps(color)}>
+    <svg {...iconProps(color, size)}>
       <path d="M20 4c0 8-6 14-14 14 0-8 6-14 14-14z" fill={`${color}33`} />
       <path d="M6 18c6-6 10-10 14-14" />
     </svg>
@@ -814,17 +967,18 @@ function LeafIcon({ color }) {
 }
 
 /** Same glyph as MUI `SolarPower`; inline SVG so size is correct inside the parent `<svg>`. */
-function SolarIcon({ color }) {
+function SolarIcon({ color, size = 28 }) {
+  const o = size / 2;
   return (
-    <svg width={28} height={28} viewBox="0 0 24 24" x={-14} y={-14} fill={color}>
+    <svg width={size} height={size} viewBox="0 0 24 24" x={-o} y={-o} fill={color}>
       <path d={SOLAR_POWER_ICON_PATH_D} />
     </svg>
   );
 }
 
-function GasIcon({ color }) {
+function GasIcon({ color, size = 28 }) {
   return (
-    <svg {...iconProps(color)}>
+    <svg {...iconProps(color, size)}>
       <path
         d="M12 3s5 5 5 10a5 5 0 1 1-10 0c0-3 2-5 2-5s1 2 1 3 1-3 2-8z"
         fill={`${color}33`}
@@ -833,9 +987,9 @@ function GasIcon({ color }) {
   );
 }
 
-function GridIcon({ color }) {
+function GridIcon({ color, size = 28 }) {
   return (
-    <svg {...iconProps(color)}>
+    <svg {...iconProps(color, size)}>
       <path d="M6 4l6 6 6-6" />
       <path d="M8 10v10h8V10" fill={`${color}33`} />
       <path d="M10 14h4" />
@@ -843,9 +997,9 @@ function GridIcon({ color }) {
   );
 }
 
-function HomeIcon({ color }) {
+function HomeIcon({ color, size = 28 }) {
   return (
-    <svg {...iconProps(color)}>
+    <svg {...iconProps(color, size)}>
       <path d="M3 12l9-8 9 8" fill="none" />
       <path d="M5 10v10h14V10" fill={`${color}22`} />
       <path d="M10 20v-6h4v6" />
@@ -853,9 +1007,9 @@ function HomeIcon({ color }) {
   );
 }
 
-function BatteryIcon({ color }) {
+function BatteryIcon({ color, size = 28 }) {
   return (
-    <svg {...iconProps(color)}>
+    <svg {...iconProps(color, size)}>
       <rect x="3" y="7" width="16" height="10" rx="2" fill={`${color}22`} />
       <rect x="19" y="10" width="2" height="4" fill={color} stroke="none" />
       <path d="M7 12h8" />

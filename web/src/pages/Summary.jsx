@@ -257,6 +257,18 @@ export function Summary() {
     [model, latestStates.data?.byEntity],
   );
 
+  const rangeFlowKwh = useMemo(
+    () =>
+      splitEnergyDashboardTotals(
+        solarTotal || 0,
+        gridIn || 0,
+        gridOut || 0,
+        batteryIn || 0,
+        batteryOut || 0,
+      ),
+    [solarTotal, gridIn, gridOut, batteryIn, batteryOut],
+  );
+
   const batteryFromAvailableEntity = useMemo(() => {
     const id = model?.batteryAvailableKwhEntity;
     if (!id || !latestStates.data?.byEntity) {
@@ -447,7 +459,9 @@ export function Summary() {
         >
           <SummaryLivePowerBar
             liveFlowW={liveFlowW}
-            loading={latestStates.isLoading && !latestStates.data}
+            rangeFlowKwh={rangeFlowKwh}
+            liveLoading={latestStates.isLoading && !latestStates.data}
+            rangeLoading={stats.isLoading}
           />
         </Box>
         <Box sx={{ minWidth: 0, order: { xs: 2, md: 0 } }}>
@@ -458,7 +472,14 @@ export function Summary() {
             loading={heroLoading}
           />
         </Box>
-        <Box sx={{ minWidth: 0, order: { xs: 3, md: 0 } }}>
+        <Box
+          sx={{
+            minWidth: 0,
+            order: { xs: 3, md: 0 },
+            // Let the distribution card use the same width as HA: cancel page gutters on small screens.
+            mx: { xs: -2, sm: 0 },
+          }}
+        >
           {loading && !prefs.data ? (
             <Skeleton variant="rounded" height={360} />
           ) : (

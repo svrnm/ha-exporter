@@ -13,6 +13,21 @@ export function formatKwh(value, locale) {
 }
 
 /**
+ * Energy in Wh (e.g. from kWh · 1000) for the summary bar. Fine-grained for small
+ * day totals; no decimals for large values to keep labels readable.
+ * @param {number | null | undefined} wh
+ * @param {string} locale
+ */
+export function formatWh(wh, locale) {
+  if (wh == null || !Number.isFinite(wh)) return '—';
+  const abs = Math.abs(wh);
+  const maxFrac = abs < 10 ? 1 : 0;
+  return new Intl.NumberFormat(locale, {
+    maximumFractionDigits: maxFrac,
+  }).format(wh);
+}
+
+/**
  * @param {number | null | undefined} valueW  Power in watts
  * @param {string} locale
  * @param {{ signed?: boolean }} [options]
