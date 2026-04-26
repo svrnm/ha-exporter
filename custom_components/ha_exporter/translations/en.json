@@ -1,0 +1,109 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HA Exporter",
+        "description": "Send Home Assistant statistics and states to a remote REST API.",
+        "data": {
+          "endpoint": "Endpoint URL (primary)",
+          "second_endpoint": "Second endpoint URL (optional)",
+          "token": "Bearer token",
+          "interval": "Push interval (seconds)",
+          "include_energy": "Auto-export Energy dashboard entities",
+          "extra_entities": "Extra entities to export (real-time states)",
+          "verify_ssl": "Verify TLS certificate",
+          "initial_backfill_days": "Initial backfill (days)",
+          "electricity_price_entity": "Override electricity price sensor (optional)",
+          "gas_price_entity": "Override gas price sensor (optional)",
+          "battery_available_kwh_entity": "Battery remaining energy (optional)",
+          "battery_capacity_kwh_entity": "Battery usable capacity (optional)"
+        },
+        "data_description": {
+          "endpoint": "Base URL of your receiving API. The integration appends /ingest automatically. Pushes, retries, and the offline buffer use this URL first (use the server that must be reliable, e.g. production).",
+          "second_endpoint": "Optional second base URL. The same bearer token and payload are sent to both URLs on every successful push (e.g. mirror to a dev server). If the second URL is down, uploads to the primary still succeed (warning in the log). Only the primary controls retries and backoff.",
+          "token": "Sent as Authorization: Bearer <token>.",
+          "interval": "How often buffered data is flushed to the remote API. Minimum 30 seconds.",
+          "include_energy": "If enabled, long-term statistics for every entity configured in the Energy dashboard are pushed hourly.",
+          "extra_entities": "State changes for these entities are pushed in real time (batched).",
+          "initial_backfill_days": "When the integration starts for the first time (or after a remote reset), how many days of long-term statistics to upload from Home Assistant. 0 disables auto-hydrate.",
+          "electricity_price_entity": "Normally the Energy dashboard price (entity or fixed number on each grid consumer) is used automatically. Set this only to force a different sensor for €/kWh when estimating grid, PV, and battery amounts.",
+          "gas_price_entity": "Normally the Energy dashboard gas price (entity or fixed number on the gas source) is used automatically. Set this only to force a different sensor for €/m³ when estimating gas cost.",
+          "battery_available_kwh_entity": "If set, Summary shows this under live battery power: either **remaining energy** (kWh / Wh / …) or a **state-of-charge percentage** sensor (unit % or a value like 34%). For kWh-only sensors, optionally set usable capacity below to draw the 0–100% ring; with a % sensor the capacity field is not needed.",
+          "battery_capacity_kwh_entity": "Usable energy when 100% full (same unit as remaining). With “remaining” set, the energy distribution diagram draws a segmented charge ring (0–100%)."
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "The endpoint must be a valid http(s) URL.",
+      "same_as_primary": "The second URL must differ from the primary endpoint.",
+      "cannot_connect": "Could not reach the endpoint.",
+      "invalid_auth": "The server rejected the token."
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HA Exporter instance can be configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Exporter options",
+        "data": {
+          "endpoint": "Endpoint URL (primary)",
+          "second_endpoint": "Second endpoint URL (optional)",
+          "token": "Bearer token",
+          "interval": "Push interval (seconds)",
+          "include_energy": "Auto-export Energy dashboard entities",
+          "extra_entities": "Extra entities to export (real-time states)",
+          "verify_ssl": "Verify TLS certificate",
+          "initial_backfill_days": "Initial backfill (days)",
+          "electricity_price_entity": "Override electricity price sensor (optional)",
+          "gas_price_entity": "Override gas price sensor (optional)",
+          "battery_available_kwh_entity": "Battery remaining energy (optional)",
+          "battery_capacity_kwh_entity": "Battery usable capacity (optional)"
+        },
+        "data_description": {
+          "endpoint": "Base URL the integration POSTs to (append /ingest). Primary: retries and buffer ack use this URL.",
+          "second_endpoint": "Optional mirror. Same token and full payload on each successful push. Failures are logged only."
+        }
+      }
+    }
+  },
+  "services": {
+    "push_now": {
+      "name": "Push now",
+      "description": "Flush the buffer immediately to the remote API."
+    },
+    "backfill": {
+      "name": "Backfill statistics",
+      "description": "Re-export long-term statistics for every configured Energy dashboard entity.",
+      "fields": {
+        "days": {
+          "name": "Days",
+          "description": "How many days of history to re-export. Takes precedence over Hours."
+        },
+        "hours": {
+          "name": "Hours",
+          "description": "How many hours of history to re-export. Ignored if Days is given."
+        },
+        "clear_cursors": {
+          "name": "Clear cursors",
+          "description": "Forget the per-statistic 'last exported' bookmark before collecting, so everything is re-sent."
+        }
+      }
+    },
+    "reset_remote": {
+      "name": "Reset remote data",
+      "description": "Wipe stored time-series on the remote API for this instance, then re-hydrate it.",
+      "fields": {
+        "days": {
+          "name": "Days to re-hydrate",
+          "description": "How many days of statistics to re-push after the wipe. 0 means wipe only."
+        },
+        "full": {
+          "name": "Full wipe",
+          "description": "Also delete the stored energy dashboard configuration on the server."
+        }
+      }
+    }
+  }
+}

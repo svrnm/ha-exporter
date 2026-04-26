@@ -1,0 +1,14 @@
+{
+  "domain": "ha_exporter",
+  "name": "HA Exporter",
+  "version": "0.1.0",
+  "documentation": "https://github.com/your-github/ha-exporter",
+  "issue_tracker": "https://github.com/your-github/ha-exporter/issues",
+  "codeowners": ["@your-github"],
+  "config_flow": true,
+  "iot_class": "calculated",
+  "integration_type": "service",
+  "dependencies": ["http", "recorder", "energy"],
+  "requirements": [],
+  "quality_scale": "silver"
+}

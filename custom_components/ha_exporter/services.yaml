@@ -1,0 +1,77 @@
+push_now:
+  name: Push now
+  description: Flush the local export buffer to the remote API immediately.
+
+backfill:
+  name: Backfill statistics
+  description: >-
+    Re-export long-term statistics for every configured Energy dashboard
+    entity. Useful on first setup, after fixing a misconfigured endpoint,
+    or whenever the remote is missing data you know exists in HA.
+  fields:
+    days:
+      name: Days
+      description: >-
+        How many days of history to re-export. Takes precedence over `hours`.
+        Default 30, max 366.
+      example: 30
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 366
+          step: 1
+          unit_of_measurement: d
+          mode: box
+    hours:
+      name: Hours
+      description: >-
+        How many hours of history to re-export. Ignored if `days` is given.
+      example: 48
+      selector:
+        number:
+          min: 1
+          max: 8784
+          step: 1
+          unit_of_measurement: h
+          mode: box
+    clear_cursors:
+      name: Clear cursors
+      description: >-
+        Forget the per-statistic "last exported" bookmark before collecting.
+        Use this if the remote was wiped and you want to re-send everything
+        regardless of what the integration thinks was already pushed.
+      default: false
+      selector:
+        boolean:
+
+reset_remote:
+  name: Reset remote data
+  description: >-
+    Ask the remote API to delete all stored time-series for this HA instance,
+    then re-hydrate it with recent history. Energy dashboard configuration
+    is preserved on the server so the UI stays configured.
+  fields:
+    days:
+      name: Days to re-hydrate
+      description: >-
+        After the wipe, how many days of long-term statistics to re-push.
+        0 means "wipe only; don't re-upload". Default 30, max 366.
+      default: 30
+      example: 30
+      selector:
+        number:
+          min: 0
+          max: 366
+          step: 1
+          unit_of_measurement: d
+          mode: box
+    full:
+      name: Full wipe
+      description: >-
+        Also delete the stored energy-dashboard configuration and instance
+        record on the server. The next push will recreate them. Leave off
+        unless you really want a clean slate.
+      default: false
+      selector:
+        boolean:
