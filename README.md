@@ -1,5 +1,7 @@
 # HA Exporter
 
+> **Warning:** This app is purely vibe-coded and provided as-is. Use it at your own risk.
+
 A Home Assistant custom integration that pushes your long-term energy
 statistics and selected sensor state changes to a REST API you own.
 
@@ -188,4 +190,4 @@ custom_components/ha_exporter/
 
 ## License
 
-MIT — do whatever you want, no warranty.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text.

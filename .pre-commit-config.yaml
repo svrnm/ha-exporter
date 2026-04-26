@@ -13,6 +13,7 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/pylint-dev/pylint
-    rev: v2.17.2
+    # v2.17.x fails to install on Python 3.14: old build deps use pkgutil.ImpImporter (removed in 3.12+).
+    rev: v4.0.5
     hooks:
       - id: pylint
