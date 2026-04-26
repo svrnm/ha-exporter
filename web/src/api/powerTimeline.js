@@ -1,7 +1,6 @@
 import {
   normalizeCumulativeStatsToKwh,
   pointsToHourlyDeltas,
-  sortStatisticsPointsAscending,
   splitEnergyDashboardTotals,
 } from './energyModel.js';
 

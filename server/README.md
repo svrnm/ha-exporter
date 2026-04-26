@@ -5,7 +5,7 @@ Tiny Node.js service that receives payloads from the
 and stores them in a single SQLite file. Ships with JSON read endpoints plus
 static serving for the companion React UI in [`../web`](../web).
 
-- Node 20+, Express 5, `better-sqlite3`. Nothing else.
+- Node **22.5+** (built-in `node:sqlite`), Express 5. No native SQLite addon.
 - Single shared bearer token. One SQLite file. No build step on the server.
 - Optional: build the React UI (`cd ../web && npm run build`) and this server
   will pick up `web/dist/` automatically.

@@ -207,18 +207,18 @@ export function Electricity() {
     return series;
   }, [deltasByStat, model?.grid, t, c.grid]);
 
+  const hasNestedDeviceMeters = useMemo(() => {
+    const list = model?.devices ?? [];
+    const ids = new Set(list.map((d) => d.stat).filter(Boolean));
+    return list.some((d) => d.includedInStat && ids.has(d.includedInStat));
+  }, [model]);
+
   if (prefs.error && prefs.error.status === 404) {
     return <Alert severity="info">{t('summary.noData')}</Alert>;
   }
 
   const isDetailed = effectiveResolution === '5minute';
   const flowLoading = needHourlyCopy ? hourlyStats.isLoading : stats.isLoading;
-
-  const hasNestedDeviceMeters = useMemo(() => {
-    const list = model?.devices ?? [];
-    const ids = new Set(list.map((d) => d.stat).filter(Boolean));
-    return list.some((d) => d.includedInStat && ids.has(d.includedInStat));
-  }, [model]);
 
   return (
     <Stack spacing={{ xs: 2, sm: 2.5 }}>

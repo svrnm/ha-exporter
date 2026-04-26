@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DateRangeOutlinedIcon from '@mui/icons-material/DateRangeOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import ParkOutlinedIcon from '@mui/icons-material/ParkOutlined';
@@ -6,12 +7,12 @@ import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import EnergySavingsLeafOutlinedIcon from '@mui/icons-material/EnergySavingsLeafOutlined';
 import {
   Box,
-  Divider,
   IconButton,
   Paper,
   Popover,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -21,7 +22,6 @@ import { formatCurrency, formatNumber } from '../format.js';
 /**
  * @param {{
  *   metricsSelection: import('../api/summaryMetrics.js').SummaryMetricsSlice | null,
- *   metricsLife: import('../api/summaryMetrics.js').SummaryMetricsSlice | null,
  *   selectionLabel: string,
  *   currency: string,
  *   loading?: boolean,
@@ -29,7 +29,6 @@ import { formatCurrency, formatNumber } from '../format.js';
  */
 export function SummaryInsightBoxes({
   metricsSelection,
-  metricsLife,
   selectionLabel,
   currency,
   loading,
@@ -56,8 +55,7 @@ export function SummaryInsightBoxes({
       title: t('summary.insightTotalCost'),
       icon: <PaidOutlinedIcon sx={{ fontSize: 22 }} />,
       accent: c.grid ?? theme.palette.primary.main,
-      today: fmtMoney(metricsSelection?.footerCost),
-      total: fmtMoney(metricsLife?.footerCost),
+      value: fmtMoney(metricsSelection?.footerCost),
       valueColor: 'text.primary',
       info: null,
     },
@@ -66,8 +64,7 @@ export function SummaryInsightBoxes({
       title: t('summary.insightTotalSavings'),
       icon: <SavingsOutlinedIcon sx={{ fontSize: 22 }} />,
       accent: c.solar ?? theme.palette.success.main,
-      today: fmtMoney(metricsSelection?.footerSavings),
-      total: fmtMoney(metricsLife?.footerSavings),
+      value: fmtMoney(metricsSelection?.footerSavings),
       valueColor: 'success.main',
       info: null,
     },
@@ -76,8 +73,7 @@ export function SummaryInsightBoxes({
       title: t('summary.insightCo2Saved'),
       icon: <EnergySavingsLeafOutlinedIcon sx={{ fontSize: 22 }} />,
       accent: c.co2Neutral ?? theme.palette.success.light,
-      today: fmtKg(metricsSelection?.co2AvoidedKg),
-      total: fmtKg(metricsLife?.co2AvoidedKg),
+      value: fmtKg(metricsSelection?.co2AvoidedKg),
       valueColor: 'text.primary',
       info: t('summary.insightCo2Footnote'),
     },
@@ -86,8 +82,7 @@ export function SummaryInsightBoxes({
       title: t('summary.insightTrees'),
       icon: <ParkOutlinedIcon sx={{ fontSize: 22 }} />,
       accent: c.home ?? theme.palette.secondary.main,
-      today: fmtTrees(metricsSelection?.treesEquivalent),
-      total: fmtTrees(metricsLife?.treesEquivalent),
+      value: fmtTrees(metricsSelection?.treesEquivalent),
       valueColor: 'text.primary',
       info: t('summary.insightTreesFootnote'),
     },
@@ -163,100 +158,63 @@ function InsightFootnote({ body, ariaLabel }) {
 function InsightCard({ card, loading, selectionLabel, t }) {
   return (
     <Paper sx={{ p: { xs: 2, sm: 2.5 }, height: '100%' }}>
-      <Stack spacing={1.5}>
-        <Stack direction="row" spacing={1.25} alignItems="flex-start">
-          <Box
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: 1.5,
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: card.accent ? `${card.accent}22` : 'action.hover',
-              color: card.accent || 'text.primary',
-              flexShrink: 0,
-            }}
-          >
-            {card.icon}
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1}>
-              <Typography
-                variant="subtitle2"
-                color="text.secondary"
-                sx={{ fontWeight: 500, lineHeight: 1.3, flex: 1, minWidth: 0 }}
-              >
-                {card.title}
-              </Typography>
-              <Box
-                sx={{
-                  width: 34,
-                  height: 34,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {card.info ? (
-                  <InsightFootnote body={card.info} ariaLabel={t('summary.insightMethodAria')} />
-                ) : null}
-              </Box>
-            </Stack>
-          </Box>
+      <Stack spacing={1.25}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+          <Tooltip title={card.title}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: 1.5,
+                display: 'grid',
+                placeItems: 'center',
+                bgcolor: card.accent ? `${card.accent}22` : 'action.hover',
+                color: card.accent || 'text.primary',
+                flexShrink: 0,
+              }}
+            >
+              {card.icon}
+            </Box>
+          </Tooltip>
+          <Box sx={{ flex: 1 }} />
+          {card.info ? (
+            <InsightFootnote body={card.info} ariaLabel={t('summary.insightMethodAria')} />
+          ) : (
+            <Box sx={{ width: 34, height: 34, flexShrink: 0 }} />
+          )}
         </Stack>
 
         {loading ? (
-          <Stack spacing={1.5} sx={{ pt: 0.25 }}>
-            <Box>
-              <Skeleton variant="text" width="32%" height={14} sx={{ mb: 0.5 }} />
-              <Skeleton variant="text" width="75%" height={36} />
-            </Box>
-            <Divider sx={{ borderColor: 'divider' }} />
-            <Box>
-              <Skeleton variant="text" width="40%" height={14} sx={{ mb: 0.5 }} />
-              <Skeleton variant="text" width="75%" height={36} />
-            </Box>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ pt: 0.25 }}>
+            <Skeleton variant="circular" width={22} height={22} />
+            <Skeleton variant="text" sx={{ flex: 1 }} height={36} />
           </Stack>
         ) : (
-          <Stack spacing={1.5} sx={{ pt: 0.25 }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
-                {selectionLabel}
-              </Typography>
-              <Typography
-                variant="h5"
-                className="num"
-                sx={{
-                  fontWeight: 700,
-                  lineHeight: 1.15,
-                  fontFeatureSettings: '"tnum"',
-                  color: card.valueColor,
-                  wordBreak: 'break-word',
-                }}
+          <Stack direction="row" alignItems="baseline" spacing={1} sx={{ minWidth: 0, pt: 0.25 }}>
+            <Tooltip title={selectionLabel}>
+              <IconButton
+                size="small"
+                aria-label={selectionLabel}
+                sx={{ p: 0.35, color: 'text.disabled', flexShrink: 0, mt: -0.25 }}
               >
-                {card.today}
-              </Typography>
-            </Box>
-            <Divider sx={{ borderColor: 'divider' }} />
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.25 }}>
-                {t('summary.insightAllData')}
-              </Typography>
-              <Typography
-                variant="h5"
-                className="num"
-                sx={{
-                  fontWeight: 700,
-                  lineHeight: 1.15,
-                  fontFeatureSettings: '"tnum"',
-                  color: card.valueColor,
-                  wordBreak: 'break-word',
-                }}
-              >
-                {card.total}
-              </Typography>
-            </Box>
+                <DateRangeOutlinedIcon sx={{ fontSize: 20 }} />
+              </IconButton>
+            </Tooltip>
+            <Typography
+              variant="h5"
+              className="num"
+              sx={{
+                fontWeight: 700,
+                lineHeight: 1.15,
+                fontFeatureSettings: '"tnum"',
+                color: card.valueColor,
+                wordBreak: 'break-word',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              {card.value}
+            </Typography>
           </Stack>
         )}
       </Stack>

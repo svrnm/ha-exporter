@@ -1,6 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
+
+/**
+ * Same contract as better-sqlite3 `db.transaction(fn)`: returns a function that
+ * runs `fn` inside BEGIN / COMMIT, or ROLLBACK on throw.
+ * @param {import('node:sqlite').DatabaseSync} db
+ */
+function wrapTransaction(db) {
+  return (fn) =>
+    (...args) => {
+      db.exec('BEGIN');
+      try {
+        const out = fn(...args);
+        db.exec('COMMIT');
+        return out;
+      } catch (e) {
+        try {
+          db.exec('ROLLBACK');
+        } catch {
+          /* ignore secondary failure */
+        }
+        throw e;
+      }
+    };
+}
 
 /** Parse any ISO-like timestamp to canonical UTC `…Z` for storage and joins. */
 function toIsoUtc(iso) {
@@ -86,14 +110,14 @@ CREATE INDEX IF NOT EXISTS idx_states_retention
  * SQLite can't retroactively change a table's inline UNIQUE constraint, so
  * the migration rebuilds the table in a transaction and copies data across.
  */
-function migrate(db) {
+function migrate(db, tx) {
   const cols = db.prepare('PRAGMA table_info(statistics)').all();
   const hasPeriod = cols.some((c) => c.name === 'period');
   if (hasPeriod) return;
 
   // Rebuild `statistics` with the new UNIQUE constraint and a default
   // `period='hour'` for everything we migrate over.
-  db.transaction(() => {
+  tx(() => {
     db.exec(`
       CREATE TABLE statistics_new (
         id            INTEGER PRIMARY KEY,
@@ -141,16 +165,17 @@ export function openDatabase(dbPath) {
   const absPath = path.resolve(dbPath);
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
 
-  const db = new Database(absPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('synchronous = NORMAL');
-  db.pragma('foreign_keys = ON');
+  const db = new DatabaseSync(absPath);
+  const tx = wrapTransaction(db);
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA synchronous = NORMAL');
+  db.exec('PRAGMA foreign_keys = ON');
   // Order matters: ensure the tables exist (with whatever shape they already
   // have from a prior install), run the migration to add `period` if needed,
   // and only then create indexes that reference columns that may not have
   // existed before the migration.
   db.exec(TABLES);
-  migrate(db);
+  migrate(db, tx);
   migrateInstanceLocationName(db);
   db.exec(INDEXES);
 
@@ -374,7 +399,7 @@ export function openDatabase(dbPath) {
    *
    * Runs inside a single transaction so readers never see a half-wiped DB.
    */
-  const clearInstanceData = db.transaction((instanceId, { full = false } = {}) => {
+  const clearInstanceData = tx((instanceId, { full = false } = {}) => {
     const stats = stmts.deleteStats.run(instanceId).changes;
     const states = stmts.deleteStates.run(instanceId).changes;
     let prefs = 0;
@@ -391,7 +416,7 @@ export function openDatabase(dbPath) {
    * @param {object} env - parsed JSON envelope from the HA exporter integration.
    * @returns {{ statistics: number, states: number }}
    */
-  const ingest = db.transaction((env) => {
+  const ingest = tx((env) => {
     const instanceId = String(env.instance_id ?? 'unknown');
     const sentAt = typeof env.sent_at === 'string' ? env.sent_at : new Date().toISOString();
 

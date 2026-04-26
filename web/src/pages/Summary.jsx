@@ -29,6 +29,7 @@ import {
   parseSpanRangeValue,
   resolveRange,
 } from '../components/RangePicker.jsx';
+import { SummaryHeroWidgets } from '../components/SummaryHeroWidgets.jsx';
 import { SummaryInsightBoxes } from '../components/SummaryInsightBoxes.jsx';
 import { SourcesTable } from '../components/SourcesTable.jsx';
 import { EnergyFlowDiagram } from '../components/EnergyFlowDiagram.jsx';
@@ -157,6 +158,15 @@ export function Summary() {
     stats.isLoading ||
     bundleLife.stats.isLoading ||
     latestHourStats.isLoading;
+
+  const totalsLifeByStat = useMemo(
+    () => totalsByStatFromResults(bundleLife.stats.results),
+    [bundleLife.stats.results],
+  );
+  const solarTotalLife = sumList(model?.solar?.map((s) => totalsLifeByStat.get(s.stat)));
+
+  const heroLoading =
+    prefs.isLoading || bundleLife.stats.isLoading || latestStates.isLoading;
 
   const weightedImportPrice = useMemo(
     () =>
@@ -422,6 +432,14 @@ export function Summary() {
         )}
       </Stack>
 
+      <SummaryHeroWidgets
+        liveFlowW={liveFlowW}
+        solarTotalLifeKwh={solarTotalLife}
+        metricsLife={metricsLife}
+        currency={currency}
+        loading={heroLoading}
+      />
+
       <Box
         sx={{
           display: 'grid',
@@ -451,7 +469,6 @@ export function Summary() {
           <SourcesTable rows={sourceRows} currency={currency} compact />
           <SummaryInsightBoxes
             metricsSelection={metricsSelection}
-            metricsLife={metricsLife}
             selectionLabel={selectionInsightLabel}
             currency={currency}
             loading={insightsLoading}

@@ -3,10 +3,22 @@ repos:
     rev: v8.24.2
     hooks:
       - id: gitleaks
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v8.38.0
+  - repo: local
     hooks:
-      - id: eslint
+      - id: eslint-web
+        name: eslint (web)
+        language: system
+        entry: web/node_modules/.bin/eslint
+        args: [--config, web/eslint.config.js]
+        files: ^web/.*\.(js|jsx)$
+        pass_filenames: true
+      - id: eslint-server
+        name: eslint (server)
+        language: system
+        entry: server/node_modules/.bin/eslint
+        args: [--config, server/eslint.config.js]
+        files: ^server/.*\.js$
+        pass_filenames: true
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
