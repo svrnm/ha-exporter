@@ -1,0 +1,6 @@
+{
+  "name": "HA Exporter",
+  "render_readme": true,
+  "homeassistant": "2024.4.0",
+  "country": ["NL", "DE", "BE", "FR", "GB", "US"]
+}
