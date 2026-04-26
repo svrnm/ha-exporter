@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import dotenv from 'dotenv';
 import express from 'express';
 
 import { bearerAuth } from './auth.js';
@@ -22,6 +23,9 @@ const SERVER_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+// Node does not load `.env` automatically; read server/.env before process.env.
+dotenv.config({ path: path.join(SERVER_ROOT, '.env') });
+
 const DEFAULT_DB_PATH = path.join(SERVER_ROOT, 'data', 'ha-exporter.sqlite');
 // The React UI lives in a sibling folder; after `npm run build` its static
 // output is in web/dist. If the bundle isn't present we just boot API-only.

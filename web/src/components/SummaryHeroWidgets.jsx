@@ -45,6 +45,9 @@ export function SummaryHeroWidgets({
     v != null && Number.isFinite(v)
       ? `${formatNumber(v, lng, { maximumFractionDigits: 1 })} ${t('units.treeYears')}`
       : '—';
+  /** Trees hero tile: tagline already names the unit; show count only. */
+  const fmtTreesCount = (v) =>
+    v != null && Number.isFinite(v) ? formatNumber(v, lng, { maximumFractionDigits: 1 }) : '—';
 
   const solarW = liveFlowW?.solarToHome ?? null;
   const batteryW = liveFlowW?.batteryToHome ?? null;
@@ -84,44 +87,80 @@ export function SummaryHeroWidgets({
         }}
       >
         {loading ? (
-          <Skeleton variant="rounded" sx={{ flex: 1, minHeight: 44 }} />
+          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Skeleton variant="rounded" width={44} height={44} sx={{ flexShrink: 0 }} />
+              <Skeleton variant="text" sx={{ flex: 1 }} height={32} />
+            </Stack>
+            <Skeleton variant="text" width="75%" height={14} />
+            <Skeleton variant="rounded" width="100%" height={40} />
+          </Stack>
         ) : !hasLiveSplit ? (
-          <Stack flex={1} alignItems="center" justifyContent="center" sx={{ minHeight: 0 }}>
-            <Tooltip title={t('summary.heroCurrentViewUnavailable')}>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ color: 'text.disabled' }}>
-                <SensorsOutlinedIcon sx={{ fontSize: 22, flexShrink: 0 }} />
-                <Typography variant="body2" color="inherit">
-                  —
-                </Typography>
-              </Stack>
-            </Tooltip>
+          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Tooltip title={t('summary.heroCurrentViewUnavailable')}>
+                <Box
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1.5,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    bgcolor: 'action.hover',
+                    color: 'text.disabled',
+                  }}
+                >
+                  <SensorsOutlinedIcon sx={{ fontSize: 24 }} />
+                </Box>
+              </Tooltip>
+              <Typography variant="h6" className="num" color="text.disabled" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                —
+              </Typography>
+            </Stack>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
+            >
+              {t('summary.heroStatConsumptionTagline')}
+            </Typography>
           </Stack>
         ) : (
-          <Stack
-            spacing={1}
-            sx={{
-              flex: 1,
-              minHeight: 0,
-              minWidth: 0,
-              justifyContent: 'center',
-            }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
-              <Stack direction="row" alignItems="center" spacing={0.75} sx={{ minWidth: 0 }}>
-                <Tooltip title={t('summary.heroCurrentView')}>
-                  <ElectricBoltOutlinedIcon
-                    sx={{ fontSize: 20, color: 'text.secondary', flexShrink: 0, display: 'block' }}
-                  />
-                </Tooltip>
-                <Typography
-                  variant="body2"
-                  className="num"
-                  color="text.secondary"
-                  sx={{ fontWeight: 700, fontFeatureSettings: '"tnum"', whiteSpace: 'nowrap' }}
+          <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+              <Tooltip title={t('summary.heroCurrentView')}>
+                <Box
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1.5,
+                    display: 'grid',
+                    placeItems: 'center',
+                    flexShrink: 0,
+                    bgcolor: 'action.selected',
+                    color: 'primary.main',
+                  }}
                 >
-                  {totalW != null ? `${formatWatts(totalW, lng)} ${t('units.w')}` : '—'}
-                </Typography>
-              </Stack>
+                  <ElectricBoltOutlinedIcon sx={{ fontSize: 24 }} />
+                </Box>
+              </Tooltip>
+              <Typography
+                variant="h6"
+                className="num"
+                sx={{
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  fontFeatureSettings: '"tnum"',
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {totalW != null ? `${formatWatts(totalW, lng)} ${t('units.w')}` : '—'}
+              </Typography>
               <Tooltip title={t('summary.heroConsumptionFootnote')}>
                 <IconButton
                   size="small"
@@ -132,6 +171,13 @@ export function SummaryHeroWidgets({
                 </IconButton>
               </Tooltip>
             </Stack>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
+            >
+              {t('summary.heroStatConsumptionTagline')}
+            </Typography>
             <LiveConsumptionSplitBar segments={splitParts} lng={lng} t={t} />
           </Stack>
         )}
@@ -156,7 +202,8 @@ export function SummaryHeroWidgets({
         tooltip={`${t('summary.insightTrees')} · ${t('summary.heroAllStoredCaption')}`}
         icon={<ParkOutlinedIcon sx={{ fontSize: 24 }} />}
         loading={loading}
-        value={fmtTrees(metricsLife?.treesEquivalent)}
+        value={fmtTreesCount(metricsLife?.treesEquivalent)}
+        valueAriaLabel={fmtTrees(metricsLife?.treesEquivalent)}
         accent={c.home ?? theme.palette.secondary.main}
       />
       <HeroStat
@@ -297,7 +344,16 @@ function LiveConsumptionSplitBar({ segments, lng, t }) {
   );
 }
 
-function HeroStat({ tagline, tooltip, icon, value, loading, accent, valueColor = 'text.primary' }) {
+function HeroStat({
+  tagline,
+  tooltip,
+  icon,
+  value,
+  loading,
+  accent,
+  valueColor = 'text.primary',
+  valueAriaLabel,
+}) {
   return (
     <Paper
       sx={{
@@ -309,51 +365,62 @@ function HeroStat({ tagline, tooltip, icon, value, loading, accent, valueColor =
         boxSizing: 'border-box',
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flex: 1, minHeight: 0 }}>
-        <Tooltip title={tooltip}>
-          <Box
-            sx={{
-              width: 44,
-              height: 44,
-              borderRadius: 1.5,
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: accent ? `${accent}22` : 'action.hover',
-              color: accent || 'text.primary',
-              flexShrink: 0,
-              alignSelf: 'flex-start',
-            }}
-          >
-            {icon}
-          </Box>
-        </Tooltip>
-        <Box sx={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.25 }}>
-          {tagline ? (
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, lineHeight: 1.25, letterSpacing: 0.01 }}>
-              {tagline}
-            </Typography>
-          ) : null}
-          {loading ? (
-            <Stack spacing={0.5} sx={{ pt: 0.25 }}>
-              <Skeleton variant="text" width="70%" height={12} />
-              <Skeleton variant="text" width="85%" height={28} />
+      <Stack spacing={1} sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
+        {loading ? (
+          <>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
+              <Skeleton variant="rounded" width={44} height={44} sx={{ flexShrink: 0 }} />
+              <Skeleton variant="text" sx={{ flex: 1 }} height={32} />
             </Stack>
-          ) : (
-            <Typography
-              variant="h6"
-              className="num"
-              sx={{
-                fontWeight: 700,
-                fontFeatureSettings: '"tnum"',
-                color: valueColor,
-                wordBreak: 'break-word',
-                lineHeight: 1.2,
-              }}
-            >
-              {value}
-            </Typography>
-          )}
-        </Box>
+            <Skeleton variant="text" width="70%" height={14} />
+          </>
+        ) : (
+          <>
+            <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+              <Tooltip title={tooltip}>
+                <Box
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1.5,
+                    display: 'grid',
+                    placeItems: 'center',
+                    bgcolor: accent ? `${accent}22` : 'action.hover',
+                    color: accent || 'text.primary',
+                    flexShrink: 0,
+                  }}
+                >
+                  {icon}
+                </Box>
+              </Tooltip>
+              <Typography
+                variant="h6"
+                className="num"
+                aria-label={valueAriaLabel}
+                sx={{
+                  fontWeight: 700,
+                  fontFeatureSettings: '"tnum"',
+                  color: valueColor,
+                  wordBreak: 'break-word',
+                  lineHeight: 1.2,
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                {value}
+              </Typography>
+            </Stack>
+            {tagline ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontWeight: 600, lineHeight: 1.3, display: 'block' }}
+              >
+                {tagline}
+              </Typography>
+            ) : null}
+          </>
+        )}
       </Stack>
     </Paper>
   );
