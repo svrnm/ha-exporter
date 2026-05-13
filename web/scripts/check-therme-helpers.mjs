@@ -50,3 +50,32 @@ const kwh = bucketHeatEnergyKwh(heatStates, grid);
 const nonZero = kwh.filter((k) => k.value !== 0);
 console.log('\nbucketHeatEnergyKwh non-zero buckets:');
 for (const k of nonZero) console.log(`  ${k.start}  ${k.value.toFixed(3)} kWh`);
+
+import { bucketBurnerMinutes } from '../src/api/thermeModel.js';
+
+// Burner phase transitions on 2026-05-10 (compressed).
+const burnerStates = [
+  { last_changed: '2026-05-10T02:54:34.469Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T02:59:22.281Z', state: 'Nachbelüftung' },
+  { last_changed: '2026-05-10T02:59:54.396Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T04:20:26.378Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T04:24:10.410Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T04:26:18.279Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T04:32:42.238Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T06:16:45.325Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T06:28:29.369Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T10:18:54.346Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T10:32:46.179Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T15:36:48.269Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T15:50:41.199Z', state: 'Brenner aus' },
+  { last_changed: '2026-05-10T18:20:34.145Z', state: 'Brenner ein: Regelbetrieb' },
+  { last_changed: '2026-05-10T18:36:34.379Z', state: 'Brenner aus' },
+];
+
+const burnerMin = bucketBurnerMinutes(burnerStates, grid);
+const totalMin = burnerMin.reduce((s, r) => s + r.value, 0);
+console.log('\nbucketBurnerMinutes total on 2026-05-10:', totalMin.toFixed(1), 'min');
+console.log('non-zero buckets:');
+for (const r of burnerMin.filter((b) => b.value > 0)) {
+  console.log(`  ${r.start}  ${r.value.toFixed(2)} min`);
+}
