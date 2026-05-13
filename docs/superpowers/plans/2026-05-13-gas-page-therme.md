@@ -28,7 +28,7 @@ The single source of truth for bucket boundaries. UTC-aligned, matches HA's reco
 **Files:**
 - Create: `web/src/api/thermeModel.js`
 
-- [ ] **Step 1: Create the file with `bucketStartsForRange`**
+- [ ] **Step 1: Create the file with `bucketsForRange`**
 
 ```js
 // web/src/api/thermeModel.js
@@ -52,7 +52,7 @@ const PERIOD_MS = {
  * @param {'hour'|'5minute'} period
  * @returns {Array<{ start: string, end: string }>}  Sorted, contiguous.
  */
-export function bucketStartsForRange(startIso, endIso, period) {
+export function bucketsForRange(startIso, endIso, period) {
   const step = PERIOD_MS[period];
   if (!step) return [];
   const t0 = Date.parse(startIso);
@@ -86,9 +86,9 @@ mkdir -p web/scripts
 //
 // Spot-check the printed totals against the known burner runs on 2026-05-10.
 
-import { bucketStartsForRange } from '../src/api/thermeModel.js';
+import { bucketsForRange } from '../src/api/thermeModel.js';
 
-const grid = bucketStartsForRange(
+const grid = bucketsForRange(
   '2026-05-10T00:00:00Z',
   '2026-05-11T00:00:00Z',
   'hour',
@@ -98,7 +98,7 @@ console.log('grid length (hour, 1 day):', grid.length);
 console.log('grid[0]:', grid[0]);
 console.log('grid[grid.length - 1]:', grid[grid.length - 1]);
 
-const fiveMin = bucketStartsForRange(
+const fiveMin = bucketsForRange(
   '2026-05-10T04:00:00Z',
   '2026-05-10T05:00:00Z',
   '5minute',
@@ -121,7 +121,7 @@ grid length (5min, 1 hour): 12
 
 ```bash
 git add web/src/api/thermeModel.js web/scripts/check-therme-helpers.mjs
-git commit -m "feat(web): add thermeModel.bucketStartsForRange + verification driver"
+git commit -m "feat(web): add thermeModel.bucketsForRange + verification driver"
 ```
 
 ---
@@ -899,7 +899,7 @@ import {
   averageOutsideTemp,
   bucketBurnerMinutes,
   bucketHeatEnergyKwh,
-  bucketStartsForRange,
+  bucketsForRange,
   splitGasByPurpose,
 } from '../api/thermeModel.js';
 
@@ -961,7 +961,7 @@ export function Gas() {
 
   const derived = useMemo(() => {
     if (!start || !end) return null;
-    const grid = bucketStartsForRange(start, end, effectiveResolution);
+    const grid = bucketsForRange(start, end, effectiveResolution);
     if (grid.length === 0) return null;
     const gasDeltas = mergeGasDeltas(gasStats, byStat, grid);
     const totalM3 = gasDeltas.reduce((s, d) => s + d.value, 0);
