@@ -286,7 +286,7 @@ export function EnergyFlowDiagram({
             label={t('summary.flow.grid')}
             lines={[
               { arrow: '←', value: gridIn, color: c.grid },
-              { arrow: '→', value: gridOut, color: c.grid },
+              { arrow: '→', value: gridOut, color: c.solar },
             ]}
             unit={unit}
             fmt={fmt}
@@ -311,7 +311,7 @@ export function EnergyFlowDiagram({
             icon={<BatteryIcon color={c.battery} size={isCompact ? 32 : 28} />}
             label={t('summary.flow.battery')}
             lines={[
-              { arrow: '↓', value: batteryIn, color: c.battery },
+              { arrow: '↓', value: batteryIn, color: c.solar },
               { arrow: '↑', value: batteryOut, color: c.battery },
             ]}
             unit={unit}
@@ -692,15 +692,13 @@ function DualArrowNode({ pos, color, icon, label, lines, unit, fmt, theme, isCom
           x={pos.cx}
           y={pos.cy + 6 + i * lineStep}
           textAnchor="middle"
-          fill={theme.palette.text.primary}
+          fill={l.color}
           style={{
             font: `600 ${fs}px Inter, sans-serif`,
             fontFeatureSettings: '"tnum"',
           }}
         >
-          <tspan fill={l.color} style={{ fontWeight: 700 }}>
-            {l.arrow}{' '}
-          </tspan>
+          <tspan style={{ fontWeight: 700 }}>{l.arrow}{' '}</tspan>
           <tspan>{`${fmt(l.value)} ${unit}`}</tspan>
         </text>
       ))}
@@ -819,15 +817,13 @@ function BatterySegmentedNode({
           x={pos.cx}
           y={pos.cy + 4 + i * rowH}
           textAnchor="middle"
-          fill={theme.palette.text.primary}
+          fill={l.color}
           style={{
             font: `600 ${bfs}px Inter, sans-serif`,
             fontFeatureSettings: '"tnum"',
           }}
         >
-          <tspan fill={l.color} style={{ fontWeight: 700 }}>
-            {l.arrow}{' '}
-          </tspan>
+          <tspan style={{ fontWeight: 700 }}>{l.arrow}{' '}</tspan>
           <tspan>{`${fmt(l.value)} ${unit}`}</tspan>
         </text>
       ))}
