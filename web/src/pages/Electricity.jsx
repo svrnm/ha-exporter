@@ -30,6 +30,7 @@ import {
   StickyDateToolbar,
   resolveRange,
 } from '../components/RangePicker.jsx';
+import { DeviceHourlyChart } from '../components/DeviceHourlyChart.jsx';
 import { DeviceKwhBarChart } from '../components/DeviceKwhBarChart.jsx';
 import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
 import { useUrlSyncedRange } from '../hooks/useUrlSyncedRange.js';
@@ -279,6 +280,12 @@ export function Electricity() {
           )}
           {!flowLoading && model && (
             <>
+              <DeviceHourlyChart
+                devices={model.devices ?? []}
+                deltasByStat={deltasByStat}
+                range={range}
+                title={t('electricity.devicesOverTime')}
+              />
               <DeviceKwhBarChart
                 devices={sankey.deviceLeaves ?? sankey.devices}
                 title={t('electricity.devicesTitle')}
