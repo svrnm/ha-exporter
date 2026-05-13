@@ -107,17 +107,12 @@ export function bucketBurnerMinutes(states, bucketGrid) {
   }
   const rangeStart = Date.parse(bucketGrid[0].start);
   const rangeEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
-  // Build (t, on) transitions. Out-of-range rows are dropped so the
-  // "pre-first-row defaults to off" contract holds even if callers pass
-  // a wider window.
-  /** @type {Array<{ t: number, on: boolean }>} */
-  const transitions = [];
-  for (const row of states) {
-    const t = Date.parse(row.last_changed);
-    if (!Number.isFinite(t)) continue;
-    if (t < rangeStart || t >= rangeEnd) continue;
-    transitions.push({ t, on: isBurnerOnState(row.state) });
-  }
+  const transitions = buildTransitions(
+    states,
+    isBurnerOnState,
+    rangeStart,
+    rangeEnd,
+  );
   if (transitions.length === 0) {
     return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
@@ -154,4 +149,160 @@ function distributeMinutes(out, bucketGrid, segStartMs, segEndMs) {
     const overlap = Math.min(segEndMs, be) - Math.max(segStartMs, bs);
     if (overlap > 0) out[i] += overlap / 60_000;
   }
+}
+
+/**
+ * Build (timestamp, predicate-result) transitions from a sorted state-history
+ * array. Out-of-range rows are dropped so the caller's "default off" contract
+ * holds even when callers pass a wider state window.
+ *
+ * @param {Array<{ last_changed: string, state: string }>} states  Sorted ASC.
+ * @param {(state: string) => boolean} predicate
+ * @param {number} rangeStartMs
+ * @param {number} rangeEndMs
+ * @returns {Array<{ t: number, on: boolean }>}
+ */
+function buildTransitions(states, predicate, rangeStartMs, rangeEndMs) {
+  const out = [];
+  if (!Array.isArray(states)) return out;
+  for (const row of states) {
+    const t = Date.parse(row.last_changed);
+    if (!Number.isFinite(t)) continue;
+    if (t < rangeStartMs || t >= rangeEndMs) continue;
+    out.push({ t, on: predicate(row.state) });
+  }
+  return out;
+}
+
+/** True when the DHW pump state string is "Ein". */
+export function isPumpOnState(state) {
+  return typeof state === 'string' && state.trim() === 'Ein';
+}
+
+/**
+ * Apportion m³ of gas per bucket into DHW vs heating.
+ *
+ * Algorithm: within each bucket, compute total burner-on time and the
+ * subset of burner-on time that overlapped with `pumpe_warmwasser = Ein`.
+ * Apportion the bucket's m³ by that fraction. If burner data is missing
+ * for a bucket (no on-time), fall back to "all heating" (= gas going to
+ * a brief preheat / standby — uncommon enough to bias toward heating).
+ *
+ * @param {Array<{ start: string, value: number }>} gasDeltas  m³ per bucket.
+ * @param {Array<{ last_changed: string, state: string }>} pumpStates  Sorted ASC.
+ * @param {Array<{ last_changed: string, state: string }>} burnerStates  Sorted ASC.
+ * @param {Array<{ start: string, end: string }>} bucketGrid
+ * @returns {Array<{ start: string, dhw: number, heating: number }>}
+ */
+export function splitGasByPurpose(gasDeltas, pumpStates, burnerStates, bucketGrid) {
+  if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
+  const gasByStart = new Map(
+    (gasDeltas ?? []).map((d) => [d.start, Number(d.value) || 0]),
+  );
+  const burnerOnPerBucket = new Array(bucketGrid.length).fill(0);
+  const burnerOnAndDhwPerBucket = new Array(bucketGrid.length).fill(0);
+  const rangeStart = Date.parse(bucketGrid[0].start);
+  const rangeEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
+
+  // Walk both transition streams together. State before the first in-range
+  // row defaults to off (burner) / off (pump).
+  const burnerTr = buildTransitions(burnerStates, isBurnerOnState, rangeStart, rangeEnd);
+  const pumpTr = buildTransitions(pumpStates, isPumpOnState, rangeStart, rangeEnd);
+
+  // Generate combined segments by merging transition timestamps with the
+  // range bounds. buildTransitions has already filtered to [rangeStart,
+  // rangeEnd), so no extra bounds check is needed here.
+  const eventTimes = new Set([rangeStart, rangeEnd]);
+  for (const tr of burnerTr) eventTimes.add(tr.t);
+  for (const tr of pumpTr) eventTimes.add(tr.t);
+  const sortedTimes = Array.from(eventTimes).sort((a, b) => a - b);
+
+  let bIdx = 0;
+  let pIdx = 0;
+  let burnerOn = false;
+  let pumpOn = false;
+
+  for (let i = 0; i + 1 < sortedTimes.length; i++) {
+    const segStart = sortedTimes[i];
+    const segEnd = sortedTimes[i + 1];
+    // Consume transitions at or before segStart so the state applies during
+    // this segment, not the next. Without this, a transition timestamped
+    // exactly at segStart would only affect later segments.
+    while (bIdx < burnerTr.length && burnerTr[bIdx].t <= segStart) {
+      burnerOn = burnerTr[bIdx].on;
+      bIdx++;
+    }
+    while (pIdx < pumpTr.length && pumpTr[pIdx].t <= segStart) {
+      pumpOn = pumpTr[pIdx].on;
+      pIdx++;
+    }
+    if (segEnd <= segStart) continue;
+    if (burnerOn) {
+      distributeMinutes(burnerOnPerBucket, bucketGrid, segStart, segEnd);
+      if (pumpOn) {
+        distributeMinutes(burnerOnAndDhwPerBucket, bucketGrid, segStart, segEnd);
+      }
+    }
+  }
+
+  return bucketGrid.map((b, i) => {
+    const total = gasByStart.get(b.start) ?? 0;
+    const on = burnerOnPerBucket[i];
+    if (on <= 0) return { start: b.start, dhw: 0, heating: total };
+    const dhwShare = burnerOnAndDhwPerBucket[i] / on;
+    const dhw = total * dhwShare;
+    return { start: b.start, dhw, heating: total - dhw };
+  });
+}
+
+/**
+ * Time-weighted mean outside temperature per bucket.
+ *
+ * Temperature is continuous, so an empty bucket inherits the value of the
+ * most recent row before it (forward-fill). For the period before the
+ * first in-range row we use the *first* in-range value (backward-fill at
+ * the start), which is correct unless the temperature changed sharply
+ * just before `range.start`.
+ *
+ * @param {Array<{ last_changed: string, state: string }>} states  Sorted ASC.
+ * @param {Array<{ start: string, end: string }>} bucketGrid
+ * @returns {Array<{ start: string, value: number | null }>}
+ */
+export function averageOutsideTemp(states, bucketGrid) {
+  if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
+  if (!Array.isArray(states) || states.length === 0) {
+    return bucketGrid.map((b) => ({ start: b.start, value: null }));
+  }
+  const tr = [];
+  for (const row of states) {
+    const t = Date.parse(row.last_changed);
+    const v = parseScalarNumber(row.state);
+    if (!Number.isFinite(t) || v == null) continue;
+    tr.push({ t, v });
+  }
+  if (tr.length === 0) {
+    return bucketGrid.map((b) => ({ start: b.start, value: null }));
+  }
+  return bucketGrid.map((b) => {
+    const bs = Date.parse(b.start);
+    const be = Date.parse(b.end);
+    // Build segments within [bs, be) using forward-fill semantics.
+    let cursor = bs;
+    // Initial value: last tr before bs, else first tr.
+    let curVal = tr[0].v;
+    let idx = 0;
+    while (idx < tr.length && tr[idx].t <= bs) {
+      curVal = tr[idx].v;
+      idx++;
+    }
+    let weighted = 0;
+    while (idx < tr.length && tr[idx].t < be) {
+      weighted += (tr[idx].t - cursor) * curVal;
+      cursor = tr[idx].t;
+      curVal = tr[idx].v;
+      idx++;
+    }
+    weighted += (be - cursor) * curVal;
+    return { start: b.start, value: weighted / (be - bs) };
+  });
 }

@@ -79,3 +79,53 @@ console.log('non-zero buckets:');
 for (const r of burnerMin.filter((b) => b.value > 0)) {
   console.log(`  ${r.start}  ${r.value.toFixed(2)} min`);
 }
+
+import { splitGasByPurpose, averageOutsideTemp } from '../src/api/thermeModel.js';
+
+// Synthetic gas deltas in m³ for the same 24-hour window, with non-zero
+// values placed in the buckets where the burner ran in our subset.
+const gasDeltas = grid.map((b) => ({
+  start: b.start,
+  value: b.start.includes('T04:') ? 0.18
+    : b.start.includes('T06:') ? 0.13
+    : b.start.includes('T10:') ? 0.16
+    : b.start.includes('T15:') ? 0.14
+    : b.start.includes('T18:') ? 0.13
+    : 0,
+}));
+
+// DHW pump transitions extracted from the sample (Aus → Ein at burner-on
+// of each DHW cycle, Ein → Aus when the cycle ends).
+const pumpStates = [
+  { last_changed: '2026-05-10T04:20:26.378Z', state: 'Ein' },
+  { last_changed: '2026-05-10T04:32:42.238Z', state: 'Aus' },
+  { last_changed: '2026-05-10T06:16:45.325Z', state: 'Ein' },
+  { last_changed: '2026-05-10T06:28:29.369Z', state: 'Aus' },
+  { last_changed: '2026-05-10T10:18:54.346Z', state: 'Ein' },
+  { last_changed: '2026-05-10T10:35:26.226Z', state: 'Aus' },
+  { last_changed: '2026-05-10T15:36:48.268Z', state: 'Ein' },
+  { last_changed: '2026-05-10T15:53:21.202Z', state: 'Aus' },
+  { last_changed: '2026-05-10T18:20:34.145Z', state: 'Ein' },
+  { last_changed: '2026-05-10T18:39:14.302Z', state: 'Aus' },
+];
+
+const split = splitGasByPurpose(gasDeltas, pumpStates, burnerStates, grid);
+console.log('\nsplitGasByPurpose non-zero buckets:');
+for (const r of split.filter((s) => s.dhw + s.heating > 0)) {
+  console.log(
+    `  ${r.start}  dhw=${r.dhw.toFixed(3)}  heating=${r.heating.toFixed(3)}`,
+  );
+}
+
+const outsideStates = [
+  { last_changed: '2026-05-10T00:00:00Z', state: '16.5' },
+  { last_changed: '2026-05-10T06:00:00Z', state: '19.5' },
+  { last_changed: '2026-05-10T09:00:00Z', state: '25.0' },
+  { last_changed: '2026-05-10T18:00:00Z', state: '22.5' },
+  { last_changed: '2026-05-10T22:00:00Z', state: '20.0' },
+];
+const avgT = averageOutsideTemp(outsideStates, grid);
+console.log('\naverageOutsideTemp first/last few buckets:');
+for (const r of avgT.slice(0, 3).concat(avgT.slice(-2))) {
+  console.log(`  ${r.start}  ${r.value == null ? '—' : r.value.toFixed(2)} °C`);
+}
