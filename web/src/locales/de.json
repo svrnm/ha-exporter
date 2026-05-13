@@ -171,6 +171,8 @@
     "sankeyEmpty": "Für diesen Zeitraum liegen noch nicht genug Daten vor. Dafür werden stündliche Statistiken aus dem Energie-Dashboard in Home Assistant benötigt.",
     "devicesTitle": "Gesamtverbrauch Einzelgeräte",
     "devicesEmpty": "Keine Geräte-Statistiken für diesen Zeitraum.",
+    "devicesOverTime": "Geräte im Zeitverlauf",
+    "otherDevices": "Sonstige",
     "deviceHierarchyHint": "Einige Zähler sind im Energie-Dashboard einer übergeordneten Leitung zugeordnet (im Elternzähler enthalten). Hier werden nur oberste Zähler summiert — damit stimmen die Summen mit dem Netzbezug überein und es gibt keine Doppelzählung wie im HA-Flussdiagramm.",
     "deviceHierarchyHintAria": "Hinweis, wie Zähler in dieser Ansicht gezählt werden",
     "sankeyGroupRest": "Rest (in der Gruppe)",

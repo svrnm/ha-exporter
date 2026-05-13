@@ -171,6 +171,8 @@
     "sankeyEmpty": "Not enough data for this range. Hourly statistics from your Home Assistant Energy dashboard are required.",
     "devicesTitle": "Per-device consumption (total for range)",
     "devicesEmpty": "No per-device energy statistics for this range.",
+    "devicesOverTime": "Devices over time",
+    "otherDevices": "Other",
     "deviceHierarchyHint": "Some meters are grouped under a parent in the Energy dashboard (included in the parent's total). Only top-level meters are counted here so sums match net import, without double counting like in Home Assistant's flow view.",
     "deviceHierarchyHintAria": "How grouped devices are counted in this chart",
     "sankeyGroupRest": "Remaining (in group)",
