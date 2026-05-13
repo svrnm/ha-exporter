@@ -271,20 +271,23 @@ export function bucketBurnerMinutes(states, bucketGrid) {
   if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
   const minutes = new Array(bucketGrid.length).fill(0);
   if (!Array.isArray(states) || states.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: minutes[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   const rangeStart = Date.parse(bucketGrid[0].start);
   const rangeEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
-  // Build (t, on) transitions. Pre-first-row state defaults to off.
+  // Build (t, on) transitions. Out-of-range rows are dropped so the
+  // "pre-first-row defaults to off" contract holds even if callers pass
+  // a wider window.
   /** @type {Array<{ t: number, on: boolean }>} */
   const transitions = [];
   for (const row of states) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
+    if (t < rangeStart || t >= rangeEnd) continue;
     transitions.push({ t, on: isBurnerOnState(row.state) });
   }
   if (transitions.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: minutes[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   // Iterate consecutive (current → next) segments, clipped to range.
   let segStart = rangeStart;
