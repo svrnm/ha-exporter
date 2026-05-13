@@ -138,21 +138,15 @@ Sums per-push deltas from `sensor.weishaupt_warmeenergie` into kWh per bucket. N
 
 Append to `web/src/api/thermeModel.js`:
 
-```js
-/**
- * Parse the `state` field from a state-history row to a number.
- * Tolerates trailing whitespace and EU decimals (HA sometimes emits ",").
- */
-function parseStateNumber(raw) {
-  if (raw == null) return null;
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
-  if (typeof raw !== 'string') return null;
-  const s = raw.trim();
-  if (s === '' || s === 'unknown' || s === 'unavailable') return null;
-  const v = Number(s.replace(',', '.'));
-  return Number.isFinite(v) ? v : null;
-}
+Add the `parseScalarNumber` import to the top of the file (next to the existing module header) so therme helpers reuse the existing parser from `energyModel.js` instead of duplicating it:
 
+```js
+import { parseScalarNumber } from './energyModel.js';
+```
+
+Then append the helper:
+
+```js
 /**
  * Sum `weishaupt_warmeenergie` per-push deltas (Wh-ish) into kWh per bucket.
  *
@@ -169,7 +163,7 @@ export function bucketHeatEnergyKwh(states, bucketGrid) {
   if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
   const sums = new Array(bucketGrid.length).fill(0);
   if (!Array.isArray(states) || states.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: sums[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   const bucketStarts = bucketGrid.map((b) => Date.parse(b.start));
   const bucketEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
@@ -177,7 +171,7 @@ export function bucketHeatEnergyKwh(states, bucketGrid) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
     if (t < bucketStarts[0] || t >= bucketEnd) continue;
-    const v = parseStateNumber(row.state);
+    const v = parseScalarNumber(row.state);
     if (v == null) continue;
     // Binary search: find last bucket whose start <= t.
     let lo = 0;
@@ -517,7 +511,7 @@ export function averageOutsideTemp(states, bucketGrid) {
   const tr = [];
   for (const row of states) {
     const t = Date.parse(row.last_changed);
-    const v = parseStateNumber(row.state);
+    const v = parseScalarNumber(row.state);
     if (!Number.isFinite(t) || v == null) continue;
     tr.push({ t, v });
   }
