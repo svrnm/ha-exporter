@@ -417,47 +417,42 @@ export function splitGasByPurpose(gasDeltas, pumpStates, burnerStates, bucketGri
 
   // Walk both transition streams together. State before the first in-range
   // row defaults to off (burner) / off (pump).
-  const burnerTr = transitions(burnerStates, isBurnerOnState);
-  const pumpTr = transitions(pumpStates, isPumpOnState);
+  const burnerTr = buildTransitions(burnerStates, isBurnerOnState, rangeStart, rangeEnd);
+  const pumpTr = buildTransitions(pumpStates, isPumpOnState, rangeStart, rangeEnd);
 
-  // Generate combined segments by merging timestamps.
+  // Generate combined segments by merging transition timestamps with the
+  // range bounds. buildTransitions has already filtered to [rangeStart,
+  // rangeEnd), so no extra bounds check is needed here.
   const eventTimes = new Set([rangeStart, rangeEnd]);
-  for (const tr of burnerTr) if (tr.t >= rangeStart && tr.t <= rangeEnd) eventTimes.add(tr.t);
-  for (const tr of pumpTr) if (tr.t >= rangeStart && tr.t <= rangeEnd) eventTimes.add(tr.t);
+  for (const tr of burnerTr) eventTimes.add(tr.t);
+  for (const tr of pumpTr) eventTimes.add(tr.t);
   const sortedTimes = Array.from(eventTimes).sort((a, b) => a - b);
 
   let bIdx = 0;
   let pIdx = 0;
   let burnerOn = false;
   let pumpOn = false;
-  // Prime: replay transitions at exactly rangeStart (if any).
-  while (bIdx < burnerTr.length && burnerTr[bIdx].t <= rangeStart) {
-    burnerOn = burnerTr[bIdx].on;
-    bIdx++;
-  }
-  while (pIdx < pumpTr.length && pumpTr[pIdx].t <= rangeStart) {
-    pumpOn = pumpTr[pIdx].on;
-    pIdx++;
-  }
 
   for (let i = 0; i + 1 < sortedTimes.length; i++) {
     const segStart = sortedTimes[i];
     const segEnd = sortedTimes[i + 1];
+    // Consume transitions at or before segStart so the state applies during
+    // this segment, not the next. Without this, a transition timestamped
+    // exactly at segStart would only affect later segments.
+    while (bIdx < burnerTr.length && burnerTr[bIdx].t <= segStart) {
+      burnerOn = burnerTr[bIdx].on;
+      bIdx++;
+    }
+    while (pIdx < pumpTr.length && pumpTr[pIdx].t <= segStart) {
+      pumpOn = pumpTr[pIdx].on;
+      pIdx++;
+    }
     if (segEnd <= segStart) continue;
     if (burnerOn) {
       distributeMinutes(burnerOnPerBucket, bucketGrid, segStart, segEnd);
       if (pumpOn) {
         distributeMinutes(burnerOnAndDhwPerBucket, bucketGrid, segStart, segEnd);
       }
-    }
-    // Advance burnerOn / pumpOn past segEnd.
-    while (bIdx < burnerTr.length && burnerTr[bIdx].t <= segEnd) {
-      burnerOn = burnerTr[bIdx].on;
-      bIdx++;
-    }
-    while (pIdx < pumpTr.length && pumpTr[pIdx].t <= segEnd) {
-      pumpOn = pumpTr[pIdx].on;
-      pIdx++;
     }
   }
 
@@ -471,12 +466,19 @@ export function splitGasByPurpose(gasDeltas, pumpStates, burnerStates, bucketGri
   });
 }
 
-function transitions(states, predicate) {
+/**
+ * Build (timestamp, predicate-result) transitions from a sorted state-history
+ * array. Out-of-range rows are dropped so the caller's "default off" contract
+ * holds even when callers pass a wider state window. Also used by
+ * `bucketBurnerMinutes` for the same filter semantics.
+ */
+function buildTransitions(states, predicate, rangeStartMs, rangeEndMs) {
   const out = [];
   if (!Array.isArray(states)) return out;
   for (const row of states) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
+    if (t < rangeStartMs || t >= rangeEndMs) continue;
     out.push({ t, on: predicate(row.state) });
   }
   return out;
