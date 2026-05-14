@@ -61,7 +61,10 @@
     "wh": "Wh",
     "kgCo2": "kg CO₂",
     "treeYears": "gepflanzte Bäume",
-    "treeYearsAbbr": "B·J."
+    "treeYearsAbbr": "B·J.",
+    "degC": "°C",
+    "kwhPerM3": "kWh/m³",
+    "minutes": "Min"
   },
   "summary": {
     "distribution": "Energieverteilung",
@@ -179,7 +182,34 @@
   },
   "gas": {
     "title": "Gasverbrauch",
-    "totalRange": "Summe im Zeitraum"
+    "totalRange": "Summe im Zeitraum",
+    "section": {
+      "consumption": "Verbrauch",
+      "efficiency": "Wärme & Effizienz"
+    },
+    "granularity": {
+      "label": "Auflösung",
+      "hour": "Stündlich",
+      "5minute": "5 Minuten"
+    },
+    "consumptionChart": "Gasverbrauch, Warmwasser vs. Heizung",
+    "kwhThermalChart": "Gelieferte Wärme",
+    "burnerTimeline": "Brennerbetrieb",
+    "outsideOverlay": "Außentemperatur",
+    "kwhThermal": "Gelieferte Wärme",
+    "kwhPerM3": "kWh pro m³",
+    "burnerMinutes": "Brennerminuten",
+    "avgOutside": "Ø Außentemperatur",
+    "dhwShare": "Anteil Warmwasser",
+    "enableThermeHint": "Füge die Weishaupt-Sensoren in der Integration als zusätzliche Entitäten hinzu (warmeenergie, betriebsphase_brenner, pumpe_warmwasser, aussentemperatur), um gelieferte Wärme, Brennerlaufzeit, Warmwasser/Heizungs-Aufteilung und Außentemperatur-Kontext zu sehen.",
+    "stateHistoryShortHint": "Zustandshistorie wird auf diesem Server nur {{days}} Tage aufbewahrt. Die Weishaupt-Auswertungen erscheinen nur für Tage innerhalb dieses Fensters.",
+    "burner": {
+      "tooltip": "{{bucket}}: Brenner ein {{minutes}} Min"
+    },
+    "legend": {
+      "dhw": "Warmwasser",
+      "heating": "Heizung"
+    }
   },
   "now": {
     "title": "Live",
