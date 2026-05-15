@@ -99,6 +99,11 @@ export function Gas() {
     };
   }, [statesByEntity]);
 
+  const retentionGapDays = useMemo(
+    () => stateHistoryGapDays(start, statesByEntity, THERME_ENTITY_IDS),
+    [start, statesByEntity],
+  );
+
   const gasStats = useMemo(() => model?.gas ?? [], [model]);
 
   const byStat = useMemo(() => {
@@ -245,6 +250,12 @@ export function Gas() {
         <Alert severity="info">{t('gas.enableThermeHint')}</Alert>
       )}
 
+      {anyTherme && retentionGapDays >= 2 && (
+        <Alert severity="info">
+          {t('gas.stateHistoryShortHint', { days: retentionGapDays })}
+        </Alert>
+      )}
+
       {/* Sections rendered in Tasks 8 + 9. */}
       <Box sx={{ display: 'grid', gap: { xs: 2, sm: 2.5 } }}>
         <ConsumptionSection
@@ -300,6 +311,22 @@ function spansAtMostDays(startIso, endIso, days) {
   const t1 = Date.parse(endIso);
   if (!Number.isFinite(t0) || !Number.isFinite(t1)) return false;
   return t1 - t0 <= days * 86_400_000;
+}
+
+function stateHistoryGapDays(start, statesByEntity, entityIds) {
+  const t0 = Date.parse(start);
+  if (!Number.isFinite(t0)) return 0;
+  let minFirst = Infinity;
+  let hadAny = false;
+  for (const id of entityIds) {
+    const rows = statesByEntity.get(id) ?? [];
+    if (rows.length === 0) continue;
+    hadAny = true;
+    const tf = Date.parse(rows[0].last_changed);
+    if (Number.isFinite(tf)) minFirst = Math.min(minFirst, tf);
+  }
+  if (!hadAny || !Number.isFinite(minFirst)) return 0;
+  return Math.max(0, Math.floor((minFirst - t0) / 86_400_000));
 }
 
 function ConsumptionSection({
