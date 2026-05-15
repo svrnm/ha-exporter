@@ -8,16 +8,17 @@ import {
   ToggleButtonGroup,
   Typography,
 } from '@mui/material';
-/* eslint-disable no-unused-vars */
-// Imports used by ConsumptionSection (Task 8) and EfficiencySection (Task 9).
-// When those tasks add usage, merge the isDailyAggregateRange import below
-// into the named RangePicker.jsx import group further down.
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import ShowerIcon from '@mui/icons-material/Shower';
 import ThermostatIcon from '@mui/icons-material/Thermostat';
-import WhatshotIcon from '@mui/icons-material/Whatshot';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
+/* eslint-disable no-unused-vars */
+// Imports used by EfficiencySection (Task 9).
+import ShowerIcon from '@mui/icons-material/Shower';
+import WhatshotIcon from '@mui/icons-material/Whatshot';
 import PercentIcon from '@mui/icons-material/Percent';
+import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
+import { BurnerTimelineStrip } from '../components/BurnerTimelineStrip.jsx';
+/* eslint-enable no-unused-vars */
 import {
   Bar,
   CartesianGrid,
@@ -29,12 +30,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
-import { BurnerTimelineStrip } from '../components/BurnerTimelineStrip.jsx';
 import { StatCard } from '../components/StatCard.jsx';
 import { formatDay, formatHour, formatKwh, formatNumber } from '../format.js';
-import { isDailyAggregateRange } from '../components/RangePicker.jsx';
-/* eslint-enable no-unused-vars */
 import { alpha, useTheme } from '@mui/material/styles';
 import { useTranslation } from 'react-i18next';
 
@@ -42,6 +39,7 @@ import { useInstance } from '../layout/InstanceContext.jsx';
 import { useEnergyBundle, useManyStates } from '../api/hooks.js';
 import {
   allowsFiveMinuteForRange,
+  isDailyAggregateRange,
   RangePicker,
   RANGES,
   StickyDateToolbar,
@@ -307,9 +305,217 @@ function spansAtMostDays(startIso, endIso, days) {
   return t1 - t0 <= days * 86_400_000;
 }
 
-function ConsumptionSection() {
-  // Filled in by Task 8.
-  return null;
+function ConsumptionSection({
+  t,
+  lng,
+  range,
+  derived,
+  features,
+  stats,
+  gasColor,
+  heatingColor,
+  outsideColor,
+}) {
+  const totals = derived?.totals;
+  const loading = stats.isLoading || !derived;
+  const dailyAggregate = isDailyAggregateRange(range);
+  const rows = useMemo(() => {
+    if (!derived) return [];
+    const gasByStart = new Map(derived.gasDeltas.map((d) => [d.start, d.value]));
+    const splitByStart = new Map(
+      (derived.splitBuckets ?? []).map((s) => [s.start, s]),
+    );
+    const outByStart = new Map(
+      (derived.outsideBuckets ?? []).map((o) => [o.start, o.value]),
+    );
+    return derived.grid.map((b) => {
+      const total = gasByStart.get(b.start) ?? 0;
+      const split = splitByStart.get(b.start);
+      const dhw = split ? split.dhw : 0;
+      const heating = split ? split.heating : total;
+      return {
+        start: b.start,
+        label: dailyAggregate ? formatDay(b.start, lng) : formatHour(b.start, lng),
+        dhw,
+        heating,
+        outsideC: outByStart.has(b.start) ? outByStart.get(b.start) : null,
+      };
+    });
+  }, [derived, dailyAggregate, lng]);
+  const hasOutsideOverlay = derived?.outsideBuckets != null;
+
+  return (
+    <Stack spacing={{ xs: 2, sm: 2.5 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        {t('gas.section.consumption')}
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: { xs: 2, sm: 2.5 },
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(3, minmax(0, 1fr))',
+          },
+        }}
+      >
+        <StatCard
+          icon={<LocalFireDepartmentIcon />}
+          accent={gasColor}
+          label={t('gas.totalRange')}
+          value={formatKwh(totals?.m3 ?? null, lng)}
+          unit={t('units.m3')}
+          loading={loading}
+        />
+        <StatCard
+          icon={<ThermostatIcon />}
+          accent={outsideColor}
+          label={t('gas.avgOutside')}
+          value={
+            totals?.avgOutsideC == null
+              ? '—'
+              : formatNumber(totals.avgOutsideC, lng, {
+                  maximumFractionDigits: 1,
+                })
+          }
+          unit={t('units.degC')}
+          loading={loading}
+        />
+        <StatCard
+          icon={<TimerOutlinedIcon />}
+          accent={gasColor}
+          label={t('gas.burnerMinutes')}
+          value={
+            totals?.burnerMin == null
+              ? '—'
+              : formatNumber(totals.burnerMin, lng, {
+                  maximumFractionDigits: 0,
+                })
+          }
+          unit={t('units.minutes')}
+          loading={loading}
+        />
+      </Box>
+      <ConsumptionChart
+        t={t}
+        rows={rows}
+        gasColor={gasColor}
+        heatingColor={heatingColor}
+        outsideColor={outsideColor}
+        showOutside={hasOutsideOverlay}
+        showStack={features.hasBurner && features.hasPump}
+        lng={lng}
+      />
+    </Stack>
+  );
+}
+
+function ConsumptionChart({
+  t,
+  rows,
+  gasColor,
+  heatingColor,
+  outsideColor,
+  showOutside,
+  showStack,
+  lng,
+}) {
+  const theme = useTheme();
+  if (rows.length === 0) return null;
+  return (
+    <Box sx={{ width: '100%', height: { xs: 280, sm: 340 }, bgcolor: 'background.paper', borderRadius: 1, p: { xs: 1.5, sm: 2 } }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+        {t('gas.consumptionChart')}
+      </Typography>
+      <Box sx={{ width: '100%', height: 'calc(100% - 28px)' }}>
+        <ResponsiveContainer>
+          <ComposedChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke={theme.palette.divider} vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+              axisLine={{ stroke: theme.palette.divider }}
+              tickLine={false}
+              minTickGap={16}
+            />
+            <YAxis
+              yAxisId="m3"
+              tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+              width={48}
+              tickFormatter={(v) => formatKwh(v, lng)}
+            />
+            {showOutside && (
+              <YAxis
+                yAxisId="temp"
+                orientation="right"
+                tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                width={36}
+                tickFormatter={(v) => formatNumber(v, lng, { maximumFractionDigits: 0 })}
+              />
+            )}
+            <RTooltip
+              contentStyle={{
+                background: theme.palette.background.paper,
+                border: `1px solid ${theme.palette.divider}`,
+              }}
+              formatter={(value, name, item) => {
+                if (typeof value !== 'number') return [value, name];
+                if (item?.dataKey === 'outsideC') {
+                  return [`${formatNumber(value, lng, { maximumFractionDigits: 1 })} ${t('units.degC')}`, name];
+                }
+                return [`${formatKwh(value, lng)} ${t('units.m3')}`, name];
+              }}
+            />
+            <Legend wrapperStyle={{ paddingTop: 8 }} />
+            {showStack ? (
+              <>
+                <Bar
+                  yAxisId="m3"
+                  dataKey="dhw"
+                  name={t('gas.legend.dhw')}
+                  stackId="m3"
+                  fill={gasColor}
+                  radius={[0, 0, 0, 0]}
+                />
+                <Bar
+                  yAxisId="m3"
+                  dataKey="heating"
+                  name={t('gas.legend.heating')}
+                  stackId="m3"
+                  fill={heatingColor}
+                  radius={[4, 4, 0, 0]}
+                />
+              </>
+            ) : (
+              <Bar
+                yAxisId="m3"
+                dataKey="heating"
+                name={t('gas.totalRange')}
+                fill={gasColor}
+                radius={[4, 4, 0, 0]}
+              />
+            )}
+            {showOutside && (
+              <Line
+                yAxisId="temp"
+                type="monotone"
+                dataKey="outsideC"
+                name={t('gas.outsideOverlay')}
+                stroke={outsideColor}
+                dot={false}
+                strokeWidth={2}
+                connectNulls
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </Box>
+    </Box>
+  );
 }
 
 function EfficiencySection() {
