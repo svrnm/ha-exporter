@@ -11,14 +11,11 @@ import {
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ThermostatIcon from '@mui/icons-material/Thermostat';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
-/* eslint-disable no-unused-vars */
-// Imports used by EfficiencySection (Task 9).
 import ShowerIcon from '@mui/icons-material/Shower';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import PercentIcon from '@mui/icons-material/Percent';
 import { HourlyBarChart } from '../components/HourlyBarChart.jsx';
 import { BurnerTimelineStrip } from '../components/BurnerTimelineStrip.jsx';
-/* eslint-enable no-unused-vars */
 import {
   Bar,
   CartesianGrid,
@@ -518,7 +515,106 @@ function ConsumptionChart({
   );
 }
 
-function EfficiencySection() {
-  // Filled in by Task 9.
-  return null;
+function EfficiencySection({ t, lng, range, derived, features, gasColor }) {
+  const totals = derived?.totals;
+  const loading = !derived;
+  const showAny =
+    features.hasWarmeenergie ||
+    features.hasBurner ||
+    features.hasPump;
+
+  const burnerByStart = useMemo(() => {
+    const m = new Map();
+    for (const r of derived?.burnerBuckets ?? []) m.set(r.start, r.value);
+    return m;
+  }, [derived?.burnerBuckets]);
+
+  if (!showAny) return null;
+
+  const kwhSeries = derived?.kwhBuckets
+    ? [
+        {
+          key: 'kwhThermal',
+          label: t('gas.kwhThermal'),
+          color: gasColor,
+          data: derived.kwhBuckets,
+        },
+      ]
+    : [];
+
+  return (
+    <Stack spacing={{ xs: 2, sm: 2.5 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        {t('gas.section.efficiency')}
+      </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: { xs: 2, sm: 2.5 },
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(3, minmax(0, 1fr))',
+          },
+        }}
+      >
+        <StatCard
+          icon={<WhatshotIcon />}
+          accent={gasColor}
+          label={t('gas.kwhThermal')}
+          value={
+            totals?.kwhThermal == null
+              ? '—'
+              : formatKwh(totals.kwhThermal, lng)
+          }
+          unit={t('units.kwh')}
+          loading={loading}
+        />
+        <StatCard
+          icon={<PercentIcon />}
+          accent={gasColor}
+          label={t('gas.kwhPerM3')}
+          value={
+            totals?.kwhPerM3 == null
+              ? '—'
+              : formatNumber(totals.kwhPerM3, lng, {
+                  maximumFractionDigits: 2,
+                })
+          }
+          unit={t('units.kwhPerM3')}
+          loading={loading}
+        />
+        <StatCard
+          icon={<ShowerIcon />}
+          accent={gasColor}
+          label={t('gas.dhwShare')}
+          value={
+            totals?.dhwShare == null
+              ? '—'
+              : formatNumber(totals.dhwShare * 100, lng, {
+                  maximumFractionDigits: 0,
+                })
+          }
+          unit="%"
+          loading={loading}
+        />
+      </Box>
+      {kwhSeries.length > 0 && (
+        <HourlyBarChart
+          title={t('gas.kwhThermalChart')}
+          series={kwhSeries}
+          range={range}
+          unit={t('units.kwh')}
+        />
+      )}
+      {features.hasBurner && derived && (
+        <BurnerTimelineStrip
+          title={t('gas.burnerTimeline')}
+          buckets={derived.grid}
+          minutesByStart={burnerByStart}
+          bucketDurationMinutes={derived.bucketDurationMin}
+          range={range}
+        />
+      )}
+    </Stack>
+  );
 }
