@@ -61,7 +61,10 @@
     "wh": "Wh",
     "kgCo2": "kg CO₂",
     "treeYears": "tree·yr",
-    "treeYearsAbbr": "tree·yr"
+    "treeYearsAbbr": "tree·yr",
+    "degC": "°C",
+    "kwhPerM3": "kWh/m³",
+    "minutes": "min"
   },
   "summary": {
     "distribution": "Energy distribution",
@@ -181,7 +184,34 @@
   },
   "gas": {
     "title": "Gas usage",
-    "totalRange": "Total for range"
+    "totalRange": "Total for range",
+    "section": {
+      "consumption": "Consumption",
+      "efficiency": "Heat & efficiency"
+    },
+    "granularity": {
+      "label": "Resolution",
+      "hour": "Hourly",
+      "5minute": "5 minute"
+    },
+    "consumptionChart": "Gas use, DHW vs heating",
+    "kwhThermalChart": "Heat delivered",
+    "burnerTimeline": "Burner activity",
+    "outsideOverlay": "Outside temperature",
+    "kwhThermal": "Heat delivered",
+    "kwhPerM3": "kWh per m³",
+    "burnerMinutes": "Burner minutes",
+    "avgOutside": "Avg outside temperature",
+    "dhwShare": "DHW share",
+    "enableThermeHint": "Add the Weishaupt sensors to the integration's extra entities (warmeenergie, betriebsphase_brenner, pumpe_warmwasser, aussentemperatur) to unlock heat-delivered, burner-on, DHW/heating split and outside-temperature context.",
+    "stateHistoryShortHint": "The first {{days}} days of the selected range have no Weishaupt history on this server. The therme overlays only render where state history is available.",
+    "burner": {
+      "tooltip": "{{bucket}}: burner on {{minutes}} min"
+    },
+    "legend": {
+      "dhw": "Hot water",
+      "heating": "Heating"
+    }
   },
   "now": {
     "title": "Live",

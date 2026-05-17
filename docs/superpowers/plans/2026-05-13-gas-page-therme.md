@@ -28,7 +28,7 @@ The single source of truth for bucket boundaries. UTC-aligned, matches HA's reco
 **Files:**
 - Create: `web/src/api/thermeModel.js`
 
-- [ ] **Step 1: Create the file with `bucketStartsForRange`**
+- [ ] **Step 1: Create the file with `bucketsForRange`**
 
 ```js
 // web/src/api/thermeModel.js
@@ -52,7 +52,7 @@ const PERIOD_MS = {
  * @param {'hour'|'5minute'} period
  * @returns {Array<{ start: string, end: string }>}  Sorted, contiguous.
  */
-export function bucketStartsForRange(startIso, endIso, period) {
+export function bucketsForRange(startIso, endIso, period) {
   const step = PERIOD_MS[period];
   if (!step) return [];
   const t0 = Date.parse(startIso);
@@ -86,9 +86,9 @@ mkdir -p web/scripts
 //
 // Spot-check the printed totals against the known burner runs on 2026-05-10.
 
-import { bucketStartsForRange } from '../src/api/thermeModel.js';
+import { bucketsForRange } from '../src/api/thermeModel.js';
 
-const grid = bucketStartsForRange(
+const grid = bucketsForRange(
   '2026-05-10T00:00:00Z',
   '2026-05-11T00:00:00Z',
   'hour',
@@ -98,7 +98,7 @@ console.log('grid length (hour, 1 day):', grid.length);
 console.log('grid[0]:', grid[0]);
 console.log('grid[grid.length - 1]:', grid[grid.length - 1]);
 
-const fiveMin = bucketStartsForRange(
+const fiveMin = bucketsForRange(
   '2026-05-10T04:00:00Z',
   '2026-05-10T05:00:00Z',
   '5minute',
@@ -121,7 +121,7 @@ grid length (5min, 1 hour): 12
 
 ```bash
 git add web/src/api/thermeModel.js web/scripts/check-therme-helpers.mjs
-git commit -m "feat(web): add thermeModel.bucketStartsForRange + verification driver"
+git commit -m "feat(web): add thermeModel.bucketsForRange + verification driver"
 ```
 
 ---
@@ -138,21 +138,15 @@ Sums per-push deltas from `sensor.weishaupt_warmeenergie` into kWh per bucket. N
 
 Append to `web/src/api/thermeModel.js`:
 
-```js
-/**
- * Parse the `state` field from a state-history row to a number.
- * Tolerates trailing whitespace and EU decimals (HA sometimes emits ",").
- */
-function parseStateNumber(raw) {
-  if (raw == null) return null;
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
-  if (typeof raw !== 'string') return null;
-  const s = raw.trim();
-  if (s === '' || s === 'unknown' || s === 'unavailable') return null;
-  const v = Number(s.replace(',', '.'));
-  return Number.isFinite(v) ? v : null;
-}
+Add the `parseScalarNumber` import to the top of the file (next to the existing module header) so therme helpers reuse the existing parser from `energyModel.js` instead of duplicating it:
 
+```js
+import { parseScalarNumber } from './energyModel.js';
+```
+
+Then append the helper:
+
+```js
 /**
  * Sum `weishaupt_warmeenergie` per-push deltas (Wh-ish) into kWh per bucket.
  *
@@ -169,7 +163,7 @@ export function bucketHeatEnergyKwh(states, bucketGrid) {
   if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
   const sums = new Array(bucketGrid.length).fill(0);
   if (!Array.isArray(states) || states.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: sums[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   const bucketStarts = bucketGrid.map((b) => Date.parse(b.start));
   const bucketEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
@@ -177,7 +171,7 @@ export function bucketHeatEnergyKwh(states, bucketGrid) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
     if (t < bucketStarts[0] || t >= bucketEnd) continue;
-    const v = parseStateNumber(row.state);
+    const v = parseScalarNumber(row.state);
     if (v == null) continue;
     // Binary search: find last bucket whose start <= t.
     let lo = 0;
@@ -277,20 +271,23 @@ export function bucketBurnerMinutes(states, bucketGrid) {
   if (!Array.isArray(bucketGrid) || bucketGrid.length === 0) return [];
   const minutes = new Array(bucketGrid.length).fill(0);
   if (!Array.isArray(states) || states.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: minutes[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   const rangeStart = Date.parse(bucketGrid[0].start);
   const rangeEnd = Date.parse(bucketGrid[bucketGrid.length - 1].end);
-  // Build (t, on) transitions. Pre-first-row state defaults to off.
+  // Build (t, on) transitions. Out-of-range rows are dropped so the
+  // "pre-first-row defaults to off" contract holds even if callers pass
+  // a wider window.
   /** @type {Array<{ t: number, on: boolean }>} */
   const transitions = [];
   for (const row of states) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
+    if (t < rangeStart || t >= rangeEnd) continue;
     transitions.push({ t, on: isBurnerOnState(row.state) });
   }
   if (transitions.length === 0) {
-    return bucketGrid.map((b, i) => ({ start: b.start, value: minutes[i] }));
+    return bucketGrid.map((b) => ({ start: b.start, value: 0 }));
   }
   // Iterate consecutive (current → next) segments, clipped to range.
   let segStart = rangeStart;
@@ -420,47 +417,42 @@ export function splitGasByPurpose(gasDeltas, pumpStates, burnerStates, bucketGri
 
   // Walk both transition streams together. State before the first in-range
   // row defaults to off (burner) / off (pump).
-  const burnerTr = transitions(burnerStates, isBurnerOnState);
-  const pumpTr = transitions(pumpStates, isPumpOnState);
+  const burnerTr = buildTransitions(burnerStates, isBurnerOnState, rangeStart, rangeEnd);
+  const pumpTr = buildTransitions(pumpStates, isPumpOnState, rangeStart, rangeEnd);
 
-  // Generate combined segments by merging timestamps.
+  // Generate combined segments by merging transition timestamps with the
+  // range bounds. buildTransitions has already filtered to [rangeStart,
+  // rangeEnd), so no extra bounds check is needed here.
   const eventTimes = new Set([rangeStart, rangeEnd]);
-  for (const tr of burnerTr) if (tr.t >= rangeStart && tr.t <= rangeEnd) eventTimes.add(tr.t);
-  for (const tr of pumpTr) if (tr.t >= rangeStart && tr.t <= rangeEnd) eventTimes.add(tr.t);
+  for (const tr of burnerTr) eventTimes.add(tr.t);
+  for (const tr of pumpTr) eventTimes.add(tr.t);
   const sortedTimes = Array.from(eventTimes).sort((a, b) => a - b);
 
   let bIdx = 0;
   let pIdx = 0;
   let burnerOn = false;
   let pumpOn = false;
-  // Prime: replay transitions at exactly rangeStart (if any).
-  while (bIdx < burnerTr.length && burnerTr[bIdx].t <= rangeStart) {
-    burnerOn = burnerTr[bIdx].on;
-    bIdx++;
-  }
-  while (pIdx < pumpTr.length && pumpTr[pIdx].t <= rangeStart) {
-    pumpOn = pumpTr[pIdx].on;
-    pIdx++;
-  }
 
   for (let i = 0; i + 1 < sortedTimes.length; i++) {
     const segStart = sortedTimes[i];
     const segEnd = sortedTimes[i + 1];
+    // Consume transitions at or before segStart so the state applies during
+    // this segment, not the next. Without this, a transition timestamped
+    // exactly at segStart would only affect later segments.
+    while (bIdx < burnerTr.length && burnerTr[bIdx].t <= segStart) {
+      burnerOn = burnerTr[bIdx].on;
+      bIdx++;
+    }
+    while (pIdx < pumpTr.length && pumpTr[pIdx].t <= segStart) {
+      pumpOn = pumpTr[pIdx].on;
+      pIdx++;
+    }
     if (segEnd <= segStart) continue;
     if (burnerOn) {
       distributeMinutes(burnerOnPerBucket, bucketGrid, segStart, segEnd);
       if (pumpOn) {
         distributeMinutes(burnerOnAndDhwPerBucket, bucketGrid, segStart, segEnd);
       }
-    }
-    // Advance burnerOn / pumpOn past segEnd.
-    while (bIdx < burnerTr.length && burnerTr[bIdx].t <= segEnd) {
-      burnerOn = burnerTr[bIdx].on;
-      bIdx++;
-    }
-    while (pIdx < pumpTr.length && pumpTr[pIdx].t <= segEnd) {
-      pumpOn = pumpTr[pIdx].on;
-      pIdx++;
     }
   }
 
@@ -474,12 +466,19 @@ export function splitGasByPurpose(gasDeltas, pumpStates, burnerStates, bucketGri
   });
 }
 
-function transitions(states, predicate) {
+/**
+ * Build (timestamp, predicate-result) transitions from a sorted state-history
+ * array. Out-of-range rows are dropped so the caller's "default off" contract
+ * holds even when callers pass a wider state window. Also used by
+ * `bucketBurnerMinutes` for the same filter semantics.
+ */
+function buildTransitions(states, predicate, rangeStartMs, rangeEndMs) {
   const out = [];
   if (!Array.isArray(states)) return out;
   for (const row of states) {
     const t = Date.parse(row.last_changed);
     if (!Number.isFinite(t)) continue;
+    if (t < rangeStartMs || t >= rangeEndMs) continue;
     out.push({ t, on: predicate(row.state) });
   }
   return out;
@@ -517,7 +516,7 @@ export function averageOutsideTemp(states, bucketGrid) {
   const tr = [];
   for (const row of states) {
     const t = Date.parse(row.last_changed);
-    const v = parseStateNumber(row.state);
+    const v = parseScalarNumber(row.state);
     if (!Number.isFinite(t) || v == null) continue;
     tr.push({ t, v });
   }
@@ -899,7 +898,7 @@ import {
   averageOutsideTemp,
   bucketBurnerMinutes,
   bucketHeatEnergyKwh,
-  bucketStartsForRange,
+  bucketsForRange,
   splitGasByPurpose,
 } from '../api/thermeModel.js';
 
@@ -961,7 +960,7 @@ export function Gas() {
 
   const derived = useMemo(() => {
     if (!start || !end) return null;
-    const grid = bucketStartsForRange(start, end, effectiveResolution);
+    const grid = bucketsForRange(start, end, effectiveResolution);
     if (grid.length === 0) return null;
     const gasDeltas = mergeGasDeltas(gasStats, byStat, grid);
     const totalM3 = gasDeltas.reduce((s, d) => s + d.value, 0);
