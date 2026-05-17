@@ -202,7 +202,7 @@
     "avgOutside": "Avg outside temperature",
     "dhwShare": "DHW share",
     "enableThermeHint": "Add the Weishaupt sensors to the integration's extra entities (warmeenergie, betriebsphase_brenner, pumpe_warmwasser, aussentemperatur) to unlock heat-delivered, burner-on, DHW/heating split and outside-temperature context.",
-    "stateHistoryShortHint": "State history is only retained for {{days}} days on this server. The Weishaupt overlays only render for the days that fit in that window.",
+    "stateHistoryShortHint": "The first {{days}} days of the selected range have no Weishaupt history on this server. The therme overlays only render where state history is available.",
     "burner": {
       "tooltip": "{{bucket}}: burner on {{minutes}} min"
     },

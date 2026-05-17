@@ -202,7 +202,7 @@
     "avgOutside": "Ø Außentemperatur",
     "dhwShare": "Anteil Warmwasser",
     "enableThermeHint": "Füge die Weishaupt-Sensoren in der Integration als zusätzliche Entitäten hinzu (warmeenergie, betriebsphase_brenner, pumpe_warmwasser, aussentemperatur), um gelieferte Wärme, Brennerlaufzeit, Warmwasser/Heizungs-Aufteilung und Außentemperatur-Kontext zu sehen.",
-    "stateHistoryShortHint": "Zustandshistorie wird auf diesem Server nur {{days}} Tage aufbewahrt. Die Weishaupt-Auswertungen erscheinen nur für Tage innerhalb dieses Fensters.",
+    "stateHistoryShortHint": "Für die ersten {{days}} Tage des gewählten Zeitraums gibt es auf diesem Server keine Weishaupt-Historie. Die Therme-Auswertungen erscheinen nur dort, wo Zustandshistorie verfügbar ist.",
     "burner": {
       "tooltip": "{{bucket}}: Brenner ein {{minutes}} Min"
     },
