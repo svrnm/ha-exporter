@@ -488,6 +488,49 @@ export function weightedFossilPercentForGrid(
 }
 
 /**
+ * Collapse 5-minute mean-style points into one mean per hour. HA only stores
+ * short-term stats for `state_class=measurement` sensors (e.g. Electricity Maps
+ * fossil %), so we have to fetch them at `period=5minute` and re-bucket here
+ * before joining against hourly grid imports.
+ *
+ * @param {{ points?: Array<{period_start: string, mean?: number|null, state?: number|null}> } | null | undefined} data
+ */
+export function aggregateMeasurementPointsToHourly(data) {
+  const points = Array.isArray(data?.points) ? data.points : [];
+  if (points.length === 0) return data;
+  /** @type {Map<number, {sum: number, n: number}>} */
+  const byHour = new Map();
+  for (const p of points) {
+    if (!p?.period_start) continue;
+    const t = Date.parse(String(p.period_start));
+    if (!Number.isFinite(t)) continue;
+    const v = parseScalarNumber(p.mean) ?? parseScalarNumber(p.state);
+    if (v == null) continue;
+    const hourMs = Math.floor(t / 3_600_000) * 3_600_000;
+    const cur = byHour.get(hourMs);
+    if (cur) {
+      cur.sum += v;
+      cur.n += 1;
+    } else {
+      byHour.set(hourMs, { sum: v, n: 1 });
+    }
+  }
+  const aggregated = [];
+  for (const [hourMs, { sum, n }] of byHour) {
+    aggregated.push({
+      period_start: new Date(hourMs).toISOString(),
+      mean: sum / n,
+      state: null,
+      sum: null,
+      min: null,
+      max: null,
+    });
+  }
+  aggregated.sort((a, b) => (a.period_start < b.period_start ? -1 : 1));
+  return { ...data, points: aggregated, period: 'hour' };
+}
+
+/**
  * Representative €/kWh or €/m³ from hourly statistic rows when some buckets
  * only have partial columns populated (common for tariff / price sensors).
  *

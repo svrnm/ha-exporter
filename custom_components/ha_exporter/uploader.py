@@ -289,10 +289,15 @@ class Uploader:
                     raise RuntimeError("instance_id not yet available")
                 continue
             try:
+                # Longer timeout than the regular push: the server runs
+                # `DELETE FROM statistics/states WHERE instance_id = ?` in one
+                # transaction, which can take minutes on a large DB. A short
+                # timeout would strand the integration with cursors intact
+                # while the server actually completed the wipe.
                 async with session.delete(
                     del_url,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30),
+                    timeout=aiohttp.ClientTimeout(total=300),
                 ) as resp:
                     text = await resp.text()
                     if 200 <= resp.status < 300:

@@ -119,7 +119,9 @@ async def async_setup_entry(
     def _on_pushed(ev: Any) -> None:
         if ev.data.get("entry_id") != entry.entry_id:
             return
-        coordinator.async_request_refresh()
+        # `async_request_refresh` is a coroutine; schedule it on the loop
+        # rather than awaiting (this callback is sync).
+        hass.async_create_task(coordinator.async_request_refresh())
 
     unsub: CALLBACK_TYPE = hass.bus.async_listen(EVENT_PUSHED, _on_pushed)
     entry.async_on_unload(unsub)

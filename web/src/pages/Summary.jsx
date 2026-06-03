@@ -213,42 +213,24 @@ export function Summary() {
       (gridOut || 0) - (batteryIn || 0),
   );
 
-  // CO₂-neutral kWh: solar-to-home + battery discharge are always counted.
-  // If the HA user configured Electricity Maps / CO₂ Signal, we add the
-  // fossil-free share of grid imports; otherwise we leave grid un-credited
-  // (we never guess a grid split without a reading).
+  // CO₂-frei: mirror HA's "low-carbon" metric — purely the fossil-free share
+  // of *grid imports* (Σ grid_kWh_h × (1 − fossilPct_h/100)). HA does NOT
+  // add solar-to-home or battery discharge here, so we don't either —
+  // otherwise the bubble drifts above HA's number whenever the user has PV.
+  // Without an Electricity Maps reading there's nothing to show.
   const co2Free = useMemo(() => {
-    const { solarToHome } = splitEnergyDashboardTotals(
-      solarTotal || 0,
-      gridIn || 0,
-      gridOut || 0,
-      batteryIn || 0,
-      batteryOut || 0,
-    );
-    const baseClean = solarToHome + (batteryOut || 0);
     const entity = model?.co2SignalEntity;
-    if (entity) {
-      const fossilPct = weightedFossilPercentForGrid(
-        model,
-        stats.results,
-        entity,
-      );
-      if (fossilPct != null && Number.isFinite(fossilPct)) {
-        const cleanFraction = Math.max(0, Math.min(1, 1 - fossilPct / 100));
-        const total = baseClean + (gridIn || 0) * cleanFraction;
-        return total > 0 ? total : null;
-      }
-    }
-    return baseClean > 0 ? baseClean : null;
-  }, [
-    model?.co2SignalEntity,
-    stats.results,
-    solarTotal,
-    gridIn,
-    gridOut,
-    batteryIn,
-    batteryOut,
-  ]);
+    if (!entity) return null;
+    const fossilPct = weightedFossilPercentForGrid(
+      model,
+      stats.results,
+      entity,
+    );
+    if (fossilPct == null || !Number.isFinite(fossilPct)) return null;
+    const cleanFraction = Math.max(0, Math.min(1, 1 - fossilPct / 100));
+    const total = (gridIn || 0) * cleanFraction;
+    return total > 0 ? total : null;
+  }, [model, stats.results, gridIn]);
 
   const c = theme.palette.energy || {};
 

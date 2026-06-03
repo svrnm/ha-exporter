@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { useApi } from './ApiContext.jsx';
 import {
+  aggregateMeasurementPointsToHourly,
   allStatIdsFromModel,
   buildEnergyModel,
   normalizeCumulativeRowToKwh,
@@ -321,5 +323,31 @@ export function useEnergyBundle(instanceId, start, end, options = {}) {
   const model = prefs.data?.model;
   const ids = model ? allStatIdsFromModel(model) : [];
   const stats = useManyStatistics(instanceId, ids, start, end, options);
-  return { prefs, model, stats };
+  // Electricity Maps / CO₂ signal sensors are state_class=measurement, so HA
+  // never promotes them to long-term hourly stats. Pull the 5-minute series in
+  // parallel and re-bucket to hourly so the rest of the pipeline (which expects
+  // hourly points) can join it against grid imports.
+  const co2Id = model?.co2SignalEntity ?? null;
+  const co2ShortStats = useManyStatistics(
+    instanceId,
+    co2Id ? [co2Id] : [],
+    start,
+    end,
+    { ...options, period: '5minute' },
+  );
+  const mergedStats = useMemo(() => {
+    if (!co2Id) return stats;
+    const co2Result = co2ShortStats.results[0];
+    if (!co2Result?.data) return stats;
+    const aggregated = aggregateMeasurementPointsToHourly(co2Result.data);
+    let replaced = false;
+    const results = stats.results.map((r) => {
+      if (r.statId !== co2Id) return r;
+      replaced = true;
+      return { ...r, data: aggregated };
+    });
+    if (!replaced) results.push({ statId: co2Id, data: aggregated, error: null });
+    return { ...stats, results };
+  }, [co2Id, co2ShortStats.results, stats]);
+  return { prefs, model, stats: mergedStats };
 }

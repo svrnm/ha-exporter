@@ -59,6 +59,92 @@ class EnergyDiscoveryResult:
     available: bool = False
 
 
+def _find_co2signal_entity(hass: HomeAssistant) -> str | None:
+    """Locate the Electricity Maps / CO₂ Signal fossil-fuel-% entity.
+
+    Mirrors HA's own dashboard logic (frontend's `getEnergyData`): we want
+    the `%` sensor exposed by the `co2signal` integration (its other sensor
+    reports gCO₂eq/kWh intensity, which is not what the energy view uses).
+    Modern HA's `EnergyPreferences` no longer carries the entity id, so we
+    have to discover it ourselves.
+
+    Strategy (most → least reliable):
+      1. Walk `co2signal` config entries and pick the `%` sensor among
+         the entities each one registered.
+      2. Fall back to scanning the entity registry for `platform=="co2signal"`
+         (in case the integration is loaded but config_entries lookup fails
+         on this HA version).
+    """
+    try:
+        from homeassistant.helpers import entity_registry as er
+    except ImportError:
+        _LOGGER.debug("co2signal: entity_registry import failed")
+        return None
+    try:
+        ent_reg = er.async_get(hass)
+    except Exception:  # noqa: BLE001 - defensive across HA versions
+        _LOGGER.debug("co2signal: er.async_get failed", exc_info=True)
+        return None
+
+    def _is_percent_entity(entry: Any) -> bool:
+        # Prefer the registry's stored unit (set when the entity was created),
+        # then the live state's unit attribute.
+        unit = getattr(entry, "unit_of_measurement", None)
+        if unit != "%":
+            state = hass.states.get(entry.entity_id)
+            unit = state.attributes.get("unit_of_measurement") if state else None
+        return unit == "%"
+
+    # Path 1: via config entries — bulletproof against `entry.platform`
+    # quirks and surfaces clear logs when the integration is not installed.
+    co2_entries = []
+    try:
+        co2_entries = list(hass.config_entries.async_entries("co2signal"))
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug("co2signal: async_entries('co2signal') failed", exc_info=True)
+    if co2_entries:
+        for cfg in co2_entries:
+            try:
+                regs = er.async_entries_for_config_entry(ent_reg, cfg.entry_id)
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug(
+                    "co2signal: async_entries_for_config_entry failed for %s",
+                    cfg.entry_id,
+                    exc_info=True,
+                )
+                continue
+            _LOGGER.debug(
+                "co2signal: config_entry=%s entities=%s",
+                cfg.entry_id,
+                [e.entity_id for e in regs],
+            )
+            for entry in regs:
+                if _is_percent_entity(entry):
+                    return entry.entity_id
+    else:
+        _LOGGER.info(
+            "co2signal: no Electricity Maps / CO₂ Signal config entry found "
+            "— skipping CO₂-frei discovery"
+        )
+
+    # Path 2: fall back to a registry scan.
+    matched = 0
+    for entry in ent_reg.entities.values():
+        if getattr(entry, "platform", None) != "co2signal":
+            continue
+        matched += 1
+        if _is_percent_entity(entry):
+            return entry.entity_id
+    if matched == 0 and not co2_entries:
+        return None
+    _LOGGER.info(
+        "co2signal: scanned registry, %d co2signal entities present, "
+        "none with unit '%%' — fossil-%% sensor may be disabled",
+        matched,
+    )
+    return None
+
+
 async def discover_energy(hass: HomeAssistant) -> EnergyDiscoveryResult:
     """Return the set of statistic_ids referenced by the Energy dashboard."""
     try:
@@ -77,9 +163,12 @@ async def discover_energy(hass: HomeAssistant) -> EnergyDiscoveryResult:
         _LOGGER.exception("Failed to read Energy dashboard preferences")
         return EnergyDiscoveryResult()
 
-    prefs: dict[str, Any] | None = getattr(manager, "data", None)
-    if not prefs:
+    raw_prefs: dict[str, Any] | None = getattr(manager, "data", None)
+    if not raw_prefs:
         return EnergyDiscoveryResult(available=True, prefs=None)
+    # Shallow copy so we can inject ha_exporter-only fields (e.g. a discovered
+    # `co2signal_config`) without mutating HA's internal manager.data.
+    prefs: dict[str, Any] = dict(raw_prefs)
 
     stat_ids: list[str] = []
     seen: set[str] = set()
@@ -142,14 +231,21 @@ async def discover_energy(hass: HomeAssistant) -> EnergyDiscoveryResult:
         _add_stat(device.get("stat_consumption"))
         _add_power(device.get("stat_rate"))
 
-    # CO₂ signal / Electricity Maps integration. HA exposes one sensor entity
-    # under `co2signal_config.entity`. Its statistic is short-term only (mean
-    # fossil-fuel percentage per hour), but we can still pull it via the same
-    # `statistics_during_period` API because HA stores a 5-minute mean for
-    # every state_class=measurement sensor. The stat_id for short-term stats
-    # is the entity_id itself.
+    # CO₂ signal / Electricity Maps integration. Older HA versions kept the
+    # selected entity in `co2signal_config.entity` on the energy prefs, but
+    # current HA dropped that field — the dashboard now scans the entity
+    # registry for the `co2signal` platform's `%` sensor instead (see the HA
+    # frontend's `getEnergyData` in src/data/energy.ts). Mirror that behaviour
+    # here, then inject the discovered entity back into the outgoing prefs as
+    # `co2signal_config.entity` so server + web consumers keep working
+    # unchanged. The stat is short-term only (mean fossil-fuel percentage per
+    # 5 min) but the collector pulls both periods so it ends up on the wire.
     co2 = prefs.get("co2signal_config") or {}
     co2_entity = co2.get("entity") if isinstance(co2, dict) else None
+    if not co2_entity:
+        co2_entity = _find_co2signal_entity(hass)
+        if co2_entity:
+            prefs["co2signal_config"] = {"entity": co2_entity}
     _add_stat(co2_entity)
 
     # Log enough detail that users can diagnose "why is stat X not showing up"
