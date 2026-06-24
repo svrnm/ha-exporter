@@ -14,7 +14,7 @@
     "generate-tokens": "node scripts/generate-tokens.mjs"
   },
   "dependencies": {
-    "dotenv": "^16.4.7",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1"
   },
   "devDependencies": {
